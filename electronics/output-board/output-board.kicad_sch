@@ -1,5 +1,320 @@
 (kicad_sch (version 20210621) (generator eeschema)
+
+  (uuid 9c061fa1-d9f9-46dc-bb5a-81a9e551d343)
+
   (paper "A4")
-  (lib_symbols)
-  (symbol_instances)
+
+  (lib_symbols
+    (symbol "2021-09-18_15-04-13:BSS806NEH6327XTSA1" (pin_numbers hide) (pin_names (offset 1.524)) (in_bom yes) (on_board yes)
+      (property "Reference" "MOSFET" (id 0) (at 18.542 1.905 0)
+        (effects (font (size 1.524 1.524)))
+      )
+      (property "Value" "BSS806NEH6327XTSA1" (id 1) (at 11.43 -5.08 0)
+        (effects (font (size 1.524 1.524)))
+      )
+      (property "Footprint" "PG-SOT23-3-5_INF" (id 2) (at 11.43 -6.604 0)
+        (effects (font (size 1.524 1.524)) hide)
+      )
+      (property "Datasheet" "" (id 3) (at 0 0 0)
+        (effects (font (size 1.524 1.524)))
+      )
+      (property "ki_locked" "" (id 4) (at 0 0 0)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property "ki_fp_filters" "PG-SOT23-3-5_INF PG-SOT23-3-5_INF-M PG-SOT23-3-5_INF-L" (id 5) (at 0 0 0)
+        (effects (font (size 1.27 1.27)) hide)
+      )
+      (symbol "BSS806NEH6327XTSA1_1_1"
+        (circle (center 5.334 0) (radius 0.0254) (stroke (width 0.508)) (fill (type none)))
+        (circle (center 8.89 0) (radius 6.35) (stroke (width 0.254)) (fill (type none)))
+        (circle (center 9.525 -1.905) (radius 0.0254) (stroke (width 0.508)) (fill (type none)))
+        (circle (center 10.16 -4.572) (radius 0.0254) (stroke (width 0.508)) (fill (type none)))
+        (circle (center 10.16 -2.54) (radius 0.0254) (stroke (width 0.508)) (fill (type none)))
+        (circle (center 10.16 2.54) (radius 0.0254) (stroke (width 0.508)) (fill (type none)))
+        (polyline
+          (pts
+            (xy 2.54 0)
+            (xy 6.985 0)
+          )
+          (stroke (width 0.2032)) (fill (type none))
+        )
+        (polyline
+          (pts
+            (xy 4.572 -3.81)
+            (xy 6.096 -3.81)
+          )
+          (stroke (width 0.2032)) (fill (type none))
+        )
+        (polyline
+          (pts
+            (xy 4.572 -2.54)
+            (xy 4.318 -2.794)
+          )
+          (stroke (width 0.2032)) (fill (type none))
+        )
+        (polyline
+          (pts
+            (xy 4.572 -2.54)
+            (xy 6.096 -2.54)
+          )
+          (stroke (width 0.2032)) (fill (type none))
+        )
+        (polyline
+          (pts
+            (xy 4.572 -1.27)
+            (xy 5.334 -2.54)
+          )
+          (stroke (width 0.2032)) (fill (type none))
+        )
+        (polyline
+          (pts
+            (xy 5.334 -4.572)
+            (xy 5.334 0)
+          )
+          (stroke (width 0.2032)) (fill (type none))
+        )
+        (polyline
+          (pts
+            (xy 5.334 -2.54)
+            (xy 4.572 -3.81)
+          )
+          (stroke (width 0.2032)) (fill (type none))
+        )
+        (polyline
+          (pts
+            (xy 5.334 -2.54)
+            (xy 6.096 -1.27)
+          )
+          (stroke (width 0.2032)) (fill (type none))
+        )
+        (polyline
+          (pts
+            (xy 6.096 -3.81)
+            (xy 5.334 -2.54)
+          )
+          (stroke (width 0.2032)) (fill (type none))
+        )
+        (polyline
+          (pts
+            (xy 6.096 -2.54)
+            (xy 6.35 -2.286)
+          )
+          (stroke (width 0.2032)) (fill (type none))
+        )
+        (polyline
+          (pts
+            (xy 6.096 -1.27)
+            (xy 4.572 -1.27)
+          )
+          (stroke (width 0.2032)) (fill (type none))
+        )
+        (polyline
+          (pts
+            (xy 6.985 -2.54)
+            (xy 6.985 2.54)
+          )
+          (stroke (width 0.2032)) (fill (type none))
+        )
+        (polyline
+          (pts
+            (xy 7.62 -2.54)
+            (xy 7.62 -1.27)
+          )
+          (stroke (width 0.2032)) (fill (type none))
+        )
+        (polyline
+          (pts
+            (xy 7.62 -1.905)
+            (xy 9.525 -1.905)
+          )
+          (stroke (width 0.2032)) (fill (type none))
+        )
+        (polyline
+          (pts
+            (xy 7.62 -0.635)
+            (xy 7.62 0.635)
+          )
+          (stroke (width 0.2032)) (fill (type none))
+        )
+        (polyline
+          (pts
+            (xy 7.62 1.27)
+            (xy 7.62 2.54)
+          )
+          (stroke (width 0.2032)) (fill (type none))
+        )
+        (polyline
+          (pts
+            (xy 7.62 1.905)
+            (xy 9.525 1.905)
+          )
+          (stroke (width 0.2032)) (fill (type none))
+        )
+        (polyline
+          (pts
+            (xy 8.89 0)
+            (xy 9.525 0)
+          )
+          (stroke (width 0.2032)) (fill (type none))
+        )
+        (polyline
+          (pts
+            (xy 9.525 -2.54)
+            (xy 9.525 0)
+          )
+          (stroke (width 0.2032)) (fill (type none))
+        )
+        (polyline
+          (pts
+            (xy 9.525 -2.54)
+            (xy 10.795 -2.54)
+          )
+          (stroke (width 0.2032)) (fill (type none))
+        )
+        (polyline
+          (pts
+            (xy 9.525 1.905)
+            (xy 9.525 2.54)
+          )
+          (stroke (width 0.2032)) (fill (type none))
+        )
+        (polyline
+          (pts
+            (xy 9.525 2.54)
+            (xy 10.795 2.54)
+          )
+          (stroke (width 0.2032)) (fill (type none))
+        )
+        (polyline
+          (pts
+            (xy 10.16 -4.572)
+            (xy 5.334 -4.572)
+          )
+          (stroke (width 0.2032)) (fill (type none))
+        )
+        (polyline
+          (pts
+            (xy 10.16 -2.54)
+            (xy 10.16 -5.08)
+          )
+          (stroke (width 0.2032)) (fill (type none))
+        )
+        (polyline
+          (pts
+            (xy 10.16 5.08)
+            (xy 10.16 2.54)
+          )
+          (stroke (width 0.2032)) (fill (type none))
+        )
+        (polyline
+          (pts
+            (xy 10.795 -2.54)
+            (xy 10.795 -0.635)
+          )
+          (stroke (width 0.2032)) (fill (type none))
+        )
+        (polyline
+          (pts
+            (xy 10.795 0.635)
+            (xy 10.795 2.54)
+          )
+          (stroke (width 0.2032)) (fill (type none))
+        )
+        (polyline
+          (pts
+            (xy 11.43 0.635)
+            (xy 10.16 0.635)
+          )
+          (stroke (width 0.2032)) (fill (type none))
+        )
+        (polyline
+          (pts
+            (xy 5.334 -2.54)
+            (xy 5.08 -3.81)
+            (xy 5.334 -2.54)
+          )
+          (stroke (width 0)) (fill (type outline))
+        )
+        (polyline
+          (pts
+            (xy 4.572 -1.27)
+            (xy 5.334 -2.54)
+            (xy 6.096 -1.27)
+            (xy 4.572 -1.27)
+          )
+          (stroke (width 0)) (fill (type outline))
+        )
+        (polyline
+          (pts
+            (xy 5.334 -2.54)
+            (xy 4.572 -3.81)
+            (xy 6.096 -3.81)
+            (xy 5.334 -2.54)
+          )
+          (stroke (width 0)) (fill (type outline))
+        )
+        (polyline
+          (pts
+            (xy 8.89 0.635)
+            (xy 7.62 0)
+            (xy 8.89 -0.635)
+            (xy 8.89 0.635)
+          )
+          (stroke (width 0.0254)) (fill (type outline))
+        )
+        (polyline
+          (pts
+            (xy 11.43 -0.635)
+            (xy 10.16 -0.635)
+            (xy 10.795 0.635)
+            (xy 11.43 -0.635)
+          )
+          (stroke (width 0.0254)) (fill (type outline))
+        )
+        (pin unspecified line (at 0 0 0) (length 2.54)
+          (name "1" (effects (font (size 1.4986 1.4986))))
+          (number "1" (effects (font (size 1.4986 1.4986))))
+        )
+        (pin unspecified line (at 10.16 -7.62 90) (length 2.54)
+          (name "2" (effects (font (size 1.4986 1.4986))))
+          (number "2" (effects (font (size 1.4986 1.4986))))
+        )
+        (pin unspecified line (at 10.16 7.62 270) (length 2.54)
+          (name "3" (effects (font (size 1.4986 1.4986))))
+          (number "3" (effects (font (size 1.4986 1.4986))))
+        )
+      )
+    )
+  )
+
+
+  (symbol (lib_id "2021-09-18_15-04-13:BSS806NEH6327XTSA1") (at 63.5 39.37 90) (unit 1)
+    (in_bom yes) (on_board yes) (fields_autoplaced)
+    (uuid b31e6aa4-4d79-4fd3-a6f6-5de1c4b80e42)
+    (property "Reference" "MOSFET?" (id 0) (at 63.5 19.599 90)
+      (effects (font (size 1.524 1.524)))
+    )
+    (property "Value" "BSS806NEH6327XTSA1" (id 1) (at 63.5 22.878 90)
+      (effects (font (size 1.524 1.524)))
+    )
+    (property "Footprint" "PG-SOT23-3-5_INF" (id 2) (at 70.104 27.94 0)
+      (effects (font (size 1.524 1.524)) hide)
+    )
+    (property "Datasheet" "" (id 3) (at 63.5 39.37 0)
+      (effects (font (size 1.524 1.524)))
+    )
+    (pin "1" (uuid 0fffbcf6-ae61-45ad-b697-7780a06174b0))
+    (pin "2" (uuid fe1a7ec3-c584-4853-953a-65cfd6e08e77))
+    (pin "3" (uuid 2eedf0d2-d3a8-4fea-8d24-45401e7cd5c7))
+  )
+
+  (sheet_instances
+    (path "/" (page "1"))
+  )
+
+  (symbol_instances
+    (path "/b31e6aa4-4d79-4fd3-a6f6-5de1c4b80e42"
+      (reference "MOSFET?") (unit 1) (value "BSS806NEH6327XTSA1") (footprint "PG-SOT23-3-5_INF")
+    )
+  )
 )
