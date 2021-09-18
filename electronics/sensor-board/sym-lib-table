@@ -1,0 +1,4 @@
+(sym_lib_table
+  (lib (name "MAX33012EASA+")(type "Legacy")(uri "D:/NicksFiles/Documents/Penn State/Rocketry/repos/avionics/electronics/libraries/MAX33012EASA+/MAX33012EASA+.lib")(options "")(descr ""))
+  (lib (name "ADS114S08BIPBSR ADC")(type "Legacy")(uri "D:/NicksFiles/Documents/Penn State/Rocketry/repos/avionics/electronics/libraries/ul_ADS114S08BIPBSR/KiCAD/2021-09-18_15-05-13/2021-09-18_15-05-13.lib")(options "")(descr ""))
+)
