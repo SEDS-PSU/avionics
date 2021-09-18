@@ -1,3 +1,4 @@
 (sym_lib_table
   (lib (name "2021-09-18_15-04-13")(type "Legacy")(uri "${KIPRJMOD}/../libraries/BSS806N (MOSFET)/2021-09-18_15-04-13.lib")(options "")(descr ""))
+  (lib (name "2021-09-18_15-12-50")(type "Legacy")(uri "${KIPRJMOD}/../libraries/ul_STM32F446ZEH6/KiCAD/2021-09-18_15-12-50/2021-09-18_15-12-50.lib")(options "")(descr ""))
 )
