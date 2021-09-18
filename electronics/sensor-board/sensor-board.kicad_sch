@@ -1,5 +1,19 @@
 (kicad_sch (version 20210621) (generator eeschema)
+
+  (uuid fa129fe2-44a9-4647-8f3d-656b78a752fb)
+
   (paper "A4")
-  (lib_symbols)
-  (symbol_instances)
+
+  (lib_symbols
+  )
+
+
+  (text "Sensor Board" (at 186.436 191.008 0)
+    (effects (font (size 2 2)) (justify left bottom))
+    (uuid 566f9961-0534-4ec2-bdb9-aa5cc347b602)
+  )
+
+  (sheet_instances
+    (path "/" (page "1"))
+  )
 )
