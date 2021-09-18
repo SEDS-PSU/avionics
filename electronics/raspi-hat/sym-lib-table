@@ -1,0 +1,3 @@
+(sym_lib_table
+  (lib (name "MAX33012EASA+")(type "Legacy")(uri "${KIPRJMOD}/../libraries/MAX33012EASA+/MAX33012EASA+.lib")(options "")(descr ""))
+)
