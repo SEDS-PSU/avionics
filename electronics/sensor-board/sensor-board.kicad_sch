@@ -8,30 +8,7 @@
   )
 
 
-  (sheet (at 179.07 62.23) (size 29.21 93.98) (fields_autoplaced)
-    (stroke (width 0.1524) (type solid) (color 0 0 0 0))
-    (fill (color 0 0 0 0.0000))
-    (uuid 66eb4056-07b5-4c58-838e-cdd328ba42dd)
-    (property "Sheet name" "MCU Base" (id 0) (at 179.07 61.5184 0)
-      (effects (font (size 1.27 1.27)) (justify left bottom))
-    )
-    (property "Sheet file" "../mcu-base/mcu-base.kicad_sch" (id 1) (at 179.07 156.7946 0)
-      (effects (font (size 1.27 1.27)) (justify left top))
-    )
-    (pin "GND" input (at 208.28 68.58 0)
-      (effects (font (size 1.27 1.27)) (justify right))
-      (uuid 1236c891-28b5-4872-b54f-71b9cd1cc75c)
-    )
-  )
-
   (sheet_instances
     (path "/" (page "1"))
-    (path "/66eb4056-07b5-4c58-838e-cdd328ba42dd" (page "2"))
-  )
-
-  (symbol_instances
-    (path "/66eb4056-07b5-4c58-838e-cdd328ba42dd/8391c731-8824-445b-a418-02a84636a1ed"
-      (reference "U?") (unit 1) (value "STM32F446ZEHx") (footprint "Package_BGA:UFBGA-144_7x7mm_Layout12x12_P0.5mm")
-    )
   )
 )
