@@ -1,0 +1,3 @@
+(sym_lib_table
+  (lib (name "STM32f446ZEH6")(type "Legacy")(uri "${KIPRJMOD}/../libraries/ul_STM32F446ZEH6/KiCAD/2021-09-18_15-12-50/2021-09-18_15-12-50.lib")(options "")(descr ""))
+)
