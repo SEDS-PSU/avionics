@@ -4,4 +4,5 @@
   (lib (name "BSS806N (MOSFET)")(type "Legacy")(uri "${KIPRJMOD}/../libraries/BSS806N (MOSFET)/2021-09-18_15-04-13.lib")(options "")(descr ""))
   (lib (name "STM32F446ZEH6")(type "Legacy")(uri "${KIPRJMOD}/../libraries/ul_STM32F446ZEH6/KiCAD/2021-09-18_15-12-50/2021-09-18_15-12-50.lib")(options "")(descr ""))
   (lib (name "MAXM17634AMG+")(type "Legacy")(uri "${KIPRJMOD}/../libraries/MAXM17634AMG+/MAXM17634AMG+.lib")(options "")(descr ""))
+  (lib (name "OPA4197QPWRQ1")(type "Legacy")(uri "${KIPRJMOD}/../libraries/OPA4197QPWRQ1/KiCAD/2021-10-06_22-16-27/2021-10-06_22-16-27.lib")(options "")(descr ""))
 )

@@ -4,4 +4,5 @@
   (lib (name "ADS114S08BIPBSR")(type "KiCad")(uri "${KIPRJMOD}/../libraries/ul_ADS114S08BIPBSR/KiCAD/2021-09-18_15-05-13/footprints.pretty")(options "")(descr ""))
   (lib (name "STM32F446ZEH6")(type "KiCad")(uri "${KIPRJMOD}/../libraries/ul_STM32F446ZEH6/KiCAD/2021-09-18_15-12-50/footprints.pretty")(options "")(descr ""))
   (lib (name "MAXM17634AMG+")(type "KiCad")(uri "${KIPRJMOD}/..//libraries/MAXM17634AMG+/footprints.pretty")(options "")(descr ""))
+  (lib (name "OPA4197QPWRQ1")(type "KiCad")(uri "D:/NicksFiles/Documents/Penn State/Rocketry/repos/avionics/electronics/libraries/OPA4197QPWRQ1/KiCAD/2021-10-06_22-16-27/footprints.pretty")(options "")(descr ""))
 )
