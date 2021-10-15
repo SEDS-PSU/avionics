@@ -4170,11 +4170,11 @@
     (path "/08f87fc9-c454-490b-a8aa-9cb9c082b9eb"
       (reference "U?") (unit 1) (value "MAX33012EASA+") (footprint "21-0041-3-M_90-0096-8L_MXM")
     )
-    (path "/b32cc341-0351-47d0-8d95-77b5e14021d2/0eabb833-1865-45ab-8596-0b2787d2b808"
-      (reference "U?") (unit 1) (value "OPA4197QPWRQ1") (footprint "TSSOP_QPWRQ1_TEX")
-    )
     (path "/864bedde-edbe-47fd-be9e-9a9d9c5cefa4"
       (reference "U?") (unit 1) (value "OPA4197QPWRQ1") (footprint "TSSOP_QPWRQ1_TEX")
+    )
+    (path "/b32cc341-0351-47d0-8d95-77b5e14021d2/cfca9e39-efe2-41ef-a461-46aeae0e1e84"
+      (reference "U?") (unit 1) (value "MAX44252ASD+") (footprint "21-0041B_14_MXM")
     )
     (path "/d6bb79fa-0858-4930-b37d-d4cacdd21cc4"
       (reference "U?") (unit 1) (value "STM32F446ZEHx") (footprint "Package_BGA:UFBGA-144_7x7mm_Layout12x12_P0.5mm")
