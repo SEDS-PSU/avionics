@@ -4170,17 +4170,29 @@
     (path "/08f87fc9-c454-490b-a8aa-9cb9c082b9eb"
       (reference "U?") (unit 1) (value "MAX33012EASA+") (footprint "21-0041-3-M_90-0096-8L_MXM")
     )
+    (path "/b32cc341-0351-47d0-8d95-77b5e14021d2/46eaceb8-fa2f-4a73-a502-7e8133a6741b"
+      (reference "U?") (unit 1) (value "MAX44252ASD") (footprint "")
+    )
     (path "/864bedde-edbe-47fd-be9e-9a9d9c5cefa4"
       (reference "U?") (unit 1) (value "OPA4197QPWRQ1") (footprint "TSSOP_QPWRQ1_TEX")
-    )
-    (path "/b32cc341-0351-47d0-8d95-77b5e14021d2/cfca9e39-efe2-41ef-a461-46aeae0e1e84"
-      (reference "U?") (unit 1) (value "MAX44252ASD+") (footprint "21-0041B_14_MXM")
     )
     (path "/d6bb79fa-0858-4930-b37d-d4cacdd21cc4"
       (reference "U?") (unit 1) (value "STM32F446ZEHx") (footprint "Package_BGA:UFBGA-144_7x7mm_Layout12x12_P0.5mm")
     )
     (path "/f6efdadb-45b3-4c4e-a70c-d1355b29e4f7"
       (reference "U?") (unit 1) (value "LD3985M33R_SOT23") (footprint "Package_TO_SOT_SMD:SOT-23-5")
+    )
+    (path "/b32cc341-0351-47d0-8d95-77b5e14021d2/20434593-15c7-43bd-9106-98ae6ef3a56b"
+      (reference "U?") (unit 2) (value "MAX44252ASD") (footprint "")
+    )
+    (path "/b32cc341-0351-47d0-8d95-77b5e14021d2/0276bfe5-2ef2-4776-87ce-a26828c8ca50"
+      (reference "U?") (unit 3) (value "MAX44252ASD") (footprint "")
+    )
+    (path "/b32cc341-0351-47d0-8d95-77b5e14021d2/7d08f058-f298-40d0-8d33-543bcac3972a"
+      (reference "U?") (unit 4) (value "MAX44252ASD") (footprint "")
+    )
+    (path "/b32cc341-0351-47d0-8d95-77b5e14021d2/6c98205c-ba3a-4046-8c21-c39d330a9a9e"
+      (reference "U?") (unit 5) (value "MAX44252ASD") (footprint "")
     )
     (path "/0b9fecb7-5825-45ff-bb92-cf92fa61fff4"
       (reference "Y?") (unit 1) (value "25MHz 9pF") (footprint "")
