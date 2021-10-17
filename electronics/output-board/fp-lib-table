@@ -1,0 +1,6 @@
+(fp_lib_table
+  (lib (name "MOSFET")(type "KiCad")(uri "${KIPRJMOD}/../libraries/BSS806N (MOSFET)/footprints.pretty")(options "")(descr ""))
+  (lib (name "MOSFET 2")(type "KiCad")(uri "${KIPRJMOD}/../libraries/BUK9Y25-60E (MOSFET)/footprints.pretty")(options "")(descr ""))
+  (lib (name "MAX33012EASA+")(type "KiCad")(uri "${KIPRJMOD}/../libraries/MAX33012EASA+/footprints.pretty")(options "")(descr ""))
+  (lib (name "RESET BUTTON")(type "KiCad")(uri "C:/Users/Rio/Desktop/Projects/Penn State/SEDS/GitHub/avionics/electronics/libraries/Button CS1102/footprints.pretty")(options "")(descr ""))
+)

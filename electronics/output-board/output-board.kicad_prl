@@ -63,11 +63,11 @@
       35,
       36
     ],
-    "visible_layers": "fffffff_ffffffff",
+    "visible_layers": "ffdffff_ffffffff",
     "zone_display_mode": 0
   },
   "meta": {
-    "filename": "output-io.kicad_prl",
+    "filename": "output-board.kicad_prl",
     "version": 3
   },
   "project": {
