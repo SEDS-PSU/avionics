@@ -317,7 +317,7 @@
       "no_connect_dangling": "warning",
       "pin_not_connected": "error",
       "pin_not_driven": "error",
-      "pin_to_pin": "warning",
+      "pin_to_pin": "error",
       "power_pin_not_driven": "error",
       "similar_labels": "warning",
       "unannotated": "error",
@@ -409,6 +409,22 @@
     [
       "b32cc341-0351-47d0-8d95-77b5e14021d2",
       "Op Amp Array 1"
+    ],
+    [
+      "323803c7-8e88-4e7b-8a54-a7a48fd6d1e3",
+      "Op Amp Array 2"
+    ],
+    [
+      "7f86c03b-4788-4ee3-8e3a-c7f88ba5f5f3",
+      "Op Amp Array 3"
+    ],
+    [
+      "0723ec3f-6079-4e38-948e-50d06633977c",
+      "Op Amp Array 4"
+    ],
+    [
+      "ee549038-6d12-4fff-9c55-2648f40da7fa",
+      "Op Amp Array 5"
     ]
   ],
   "text_variables": {}
