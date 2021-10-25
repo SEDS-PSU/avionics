@@ -1,9 +1,10 @@
 (sym_lib_table
   (lib (name "MAX33012EASA+")(type "Legacy")(uri "${KIPRJMOD}/../libraries/MAX33012EASA+/MAX33012EASA+.lib")(options "")(descr ""))
   (lib (name "ADS114S08BIPBSR")(type "Legacy")(uri "${KIPRJMOD}/../libraries/ul_ADS114S08BIPBSR/KiCAD/2021-09-18_15-05-13/2021-09-18_15-05-13.lib")(options "")(descr ""))
-  (lib (name "BSS806N (MOSFET)")(type "Legacy")(uri "${KIPRJMOD}/../libraries/BSS806N (MOSFET)/2021-09-18_15-04-13.lib")(options "")(descr ""))
   (lib (name "STM32F446ZEH6")(type "Legacy")(uri "${KIPRJMOD}/../libraries/ul_STM32F446ZEH6/KiCAD/2021-09-18_15-12-50/2021-09-18_15-12-50.lib")(options "")(descr ""))
   (lib (name "MAXM17634AMG+")(type "Legacy")(uri "${KIPRJMOD}/../libraries/MAXM17634AMG+/MAXM17634AMG+.lib")(options "")(descr ""))
   (lib (name "MAX44252ASD-")(type "Legacy")(uri "${KIPRJMOD}/../libraries/ul_MAX44252ASD-/KiCAD/2021-10-15_02-36-06/2021-10-15_02-36-06.lib")(options "")(descr ""))
   (lib (name "MAX44252ASD_Custom")(type "KiCad")(uri "${KIPRJMOD}/../libraries/ul_MAX44252ASD-/KiCAD/2021-10-15_02-36-06/MAX44252ASD_Custom.kicad_sym")(options "")(descr ""))
+  (lib (name "LMC6036_custom")(type "KiCad")(uri "${KIPRJMOD}/../libraries/LMC6036/LMC6036_custom.kicad_sym")(options "")(descr ""))
+  (lib (name "BSS806N (MOSFET)")(type "KiCad")(uri "${KIPRJMOD}/../libraries/BSS806N (MOSFET)/2021-09-18_15-04-13.kicad_sym")(options "")(descr ""))
 )
