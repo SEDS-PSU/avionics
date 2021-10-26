@@ -1,0 +1,135 @@
+10-26 11:07:11 replicate_layout.action_replicate_layout 305:Plugin executed on: 'win32'
+10-26 11:07:11 replicate_layout.action_replicate_layout 306:Plugin executed with python version: '3.9.6 (default, Sep 27 2021, 21:15:11) [MSC v.1929 64 bit (AMD64)]'
+10-26 11:07:11 replicate_layout.action_replicate_layout 307:KiCad build version: (5.99.0-12776-g0acd707650)
+10-26 11:07:11 replicate_layout.action_replicate_layout 308:Replicate layout plugin version: 77 started
+10-26 11:07:11 replicate_layout.action_replicate_layout 339:Preparing replicator with J1 as a reference
+10-26 11:07:11 replicate_layout.replicatelayout 141:getting a list of all footprints on board
+10-26 11:07:11 replicate_layout.replicatelayout 162:total modules:101
+10-26 11:07:11 replicate_layout.action_replicate_layout 366:source anchor footprint is 'J1'
+Located on:['', 'MOSFET-sheet1']
+With filenames:['output-board.kicad_sch', 'untitled.kicad_sch']
+With sheet_id:['', 'MOSFET-sheet1']
+10-26 11:07:11 replicate_layout.action_replicate_layout 371:Corresponding footprints are 
+[('J8', ['', 'MOSFET-sheet4']), ('J13', ['', 'MOSFET-sheet9']), ('J11', ['', 'MOSFET-sheet7']), ('J2', ['', 'MOSFET-sheet2']), ('J7', ['', 'MOSFET-sheet3']), ('J9', ['', 'MOSFET-sheet5']), ('J10', ['', 'MOSFET-sheet6']), ('J16', ['', 'MOSFET-sheet11']), ('J15', ['', 'MOSFET-sheet10']), ('J17', ['', 'Ignition MOSFET']), ('J12', ['', 'MOSFET-sheet8']), ('J1', ['', 'MOSFET-sheet1']), ('J18', ['', 'MOSFET-sheet'])]
+10-26 11:07:11 replicate_layout.action_replicate_layout 384:Showing dialog
+10-26 11:07:11 replicate_layout.action_replicate_layout 388:Pcbnew position: wx.Point(-9, -9)
+10-26 11:07:11 replicate_layout.action_replicate_layout 394:Display 0: wx.Rect(0, 0, 1920, 1080)
+10-26 11:07:11 replicate_layout.action_replicate_layout 398:Toolbar position: wx.Point(1693, 138)
+10-26 11:07:11 replicate_layout.action_replicate_layout 405:Dialog position: wx.Point(1380, 138)
+10-26 11:07:13 replicate_layout.replicatelayout 177:construcing a list of sheets suitable for replication on level:'MOSFET-sheet1', file:'untitled.kicad_sch'
+10-26 11:07:13 replicate_layout.replicatelayout 184:Source sheet path up to the level:['', 'MOSFET-sheet1']
+10-26 11:07:13 replicate_layout.replicatelayout 188:Footprints on the sheets:
+['J8', 'J13', 'J11', 'J2', 'J7', 'J9', 'J10', 'J16', 'J15', 'J17', 'J12', 'J1', 'J18']
+10-26 11:07:13 replicate_layout.replicatelayout 191:Footprints raw sheet ids:
+['/95861652-6caa-440d-ae33-35c3e6668a9b/6b60855c-5bd9-463e-a130-45a0cde73160', '/ca1ddf89-c899-4fe9-b54d-3dccafa5d0cc/6b60855c-5bd9-463e-a130-45a0cde73160', '/fd555d38-9efd-4090-b580-398f0ce3794c/6b60855c-5bd9-463e-a130-45a0cde73160', '/7c0b44ed-3289-4df7-a2ca-32e0eb184fe3/6b60855c-5bd9-463e-a130-45a0cde73160', '/1ea806a6-f443-4e80-87ef-b585f08de103/6b60855c-5bd9-463e-a130-45a0cde73160', '/59ac11d2-41f8-4525-b5e6-c9b69cc3d64d/6b60855c-5bd9-463e-a130-45a0cde73160', '/fa9df34d-6cdc-4ba2-a240-df8a947a170c/6b60855c-5bd9-463e-a130-45a0cde73160', '/1b6584c1-0d12-464b-be81-0b19bbe2e291/6b60855c-5bd9-463e-a130-45a0cde73160', '/f63df9f3-f635-4488-812a-e53c82698e77/6b60855c-5bd9-463e-a130-45a0cde73160', '/03ffcab8-edae-43b1-a3a4-8f66704c20eb/6b60855c-5bd9-463e-a130-45a0cde73160', '/b1c0de20-a4c8-4523-b668-2cf58a13b8ef/6b60855c-5bd9-463e-a130-45a0cde73160', '/36b6bf08-79b4-4cbd-9663-410f8ea161a3/6b60855c-5bd9-463e-a130-45a0cde73160', '/691537aa-0e14-4c5f-8530-ba42c3dce2d9/6b60855c-5bd9-463e-a130-45a0cde73160']
+10-26 11:07:13 replicate_layout.replicatelayout 207:All sheets to replicate:
+[['', 'MOSFET-sheet4'], ['', 'MOSFET-sheet9'], ['', 'MOSFET-sheet7'], ['', 'MOSFET-sheet2'], ['', 'MOSFET-sheet3'], ['', 'MOSFET-sheet5'], ['', 'MOSFET-sheet6'], ['', 'MOSFET-sheet11'], ['', 'MOSFET-sheet10'], ['', 'Ignition MOSFET'], ['', 'MOSFET-sheet8'], ['', 'MOSFET-sheet1'], ['', 'MOSFET-sheet']]
+10-26 11:07:13 replicate_layout.replicatelayout 212:All sheets to replicate sorted:
+[['', 'Ignition MOSFET'], ['', 'MOSFET-sheet'], ['', 'MOSFET-sheet1'], ['', 'MOSFET-sheet10'], ['', 'MOSFET-sheet11'], ['', 'MOSFET-sheet2'], ['', 'MOSFET-sheet3'], ['', 'MOSFET-sheet4'], ['', 'MOSFET-sheet5'], ['', 'MOSFET-sheet6'], ['', 'MOSFET-sheet7'], ['', 'MOSFET-sheet8'], ['', 'MOSFET-sheet9']]
+10-26 11:07:13 replicate_layout.replicatelayout 218:All sheets to replicate sorted and without source sheet:
+[['', 'Ignition MOSFET'], ['', 'MOSFET-sheet'], ['', 'MOSFET-sheet10'], ['', 'MOSFET-sheet11'], ['', 'MOSFET-sheet2'], ['', 'MOSFET-sheet3'], ['', 'MOSFET-sheet4'], ['', 'MOSFET-sheet5'], ['', 'MOSFET-sheet6'], ['', 'MOSFET-sheet7'], ['', 'MOSFET-sheet8'], ['', 'MOSFET-sheet9']]
+10-26 11:07:24 replicate_layout.replicatelayout 177:construcing a list of sheets suitable for replication on level:'MOSFET-sheet1', file:'untitled.kicad_sch'
+10-26 11:07:24 replicate_layout.replicatelayout 184:Source sheet path up to the level:['', 'MOSFET-sheet1']
+10-26 11:07:24 replicate_layout.replicatelayout 188:Footprints on the sheets:
+['J8', 'J13', 'J11', 'J2', 'J7', 'J9', 'J10', 'J16', 'J15', 'J17', 'J12', 'J1', 'J18']
+10-26 11:07:24 replicate_layout.replicatelayout 191:Footprints raw sheet ids:
+['/95861652-6caa-440d-ae33-35c3e6668a9b/6b60855c-5bd9-463e-a130-45a0cde73160', '/ca1ddf89-c899-4fe9-b54d-3dccafa5d0cc/6b60855c-5bd9-463e-a130-45a0cde73160', '/fd555d38-9efd-4090-b580-398f0ce3794c/6b60855c-5bd9-463e-a130-45a0cde73160', '/7c0b44ed-3289-4df7-a2ca-32e0eb184fe3/6b60855c-5bd9-463e-a130-45a0cde73160', '/1ea806a6-f443-4e80-87ef-b585f08de103/6b60855c-5bd9-463e-a130-45a0cde73160', '/59ac11d2-41f8-4525-b5e6-c9b69cc3d64d/6b60855c-5bd9-463e-a130-45a0cde73160', '/fa9df34d-6cdc-4ba2-a240-df8a947a170c/6b60855c-5bd9-463e-a130-45a0cde73160', '/1b6584c1-0d12-464b-be81-0b19bbe2e291/6b60855c-5bd9-463e-a130-45a0cde73160', '/f63df9f3-f635-4488-812a-e53c82698e77/6b60855c-5bd9-463e-a130-45a0cde73160', '/03ffcab8-edae-43b1-a3a4-8f66704c20eb/6b60855c-5bd9-463e-a130-45a0cde73160', '/b1c0de20-a4c8-4523-b668-2cf58a13b8ef/6b60855c-5bd9-463e-a130-45a0cde73160', '/36b6bf08-79b4-4cbd-9663-410f8ea161a3/6b60855c-5bd9-463e-a130-45a0cde73160', '/691537aa-0e14-4c5f-8530-ba42c3dce2d9/6b60855c-5bd9-463e-a130-45a0cde73160']
+10-26 11:07:24 replicate_layout.replicatelayout 207:All sheets to replicate:
+[['', 'MOSFET-sheet4'], ['', 'MOSFET-sheet9'], ['', 'MOSFET-sheet7'], ['', 'MOSFET-sheet2'], ['', 'MOSFET-sheet3'], ['', 'MOSFET-sheet5'], ['', 'MOSFET-sheet6'], ['', 'MOSFET-sheet11'], ['', 'MOSFET-sheet10'], ['', 'Ignition MOSFET'], ['', 'MOSFET-sheet8'], ['', 'MOSFET-sheet1'], ['', 'MOSFET-sheet']]
+10-26 11:07:24 replicate_layout.replicatelayout 212:All sheets to replicate sorted:
+[['', 'Ignition MOSFET'], ['', 'MOSFET-sheet'], ['', 'MOSFET-sheet1'], ['', 'MOSFET-sheet10'], ['', 'MOSFET-sheet11'], ['', 'MOSFET-sheet2'], ['', 'MOSFET-sheet3'], ['', 'MOSFET-sheet4'], ['', 'MOSFET-sheet5'], ['', 'MOSFET-sheet6'], ['', 'MOSFET-sheet7'], ['', 'MOSFET-sheet8'], ['', 'MOSFET-sheet9']]
+10-26 11:07:24 replicate_layout.replicatelayout 218:All sheets to replicate sorted and without source sheet:
+[['', 'Ignition MOSFET'], ['', 'MOSFET-sheet'], ['', 'MOSFET-sheet10'], ['', 'MOSFET-sheet11'], ['', 'MOSFET-sheet2'], ['', 'MOSFET-sheet3'], ['', 'MOSFET-sheet4'], ['', 'MOSFET-sheet5'], ['', 'MOSFET-sheet6'], ['', 'MOSFET-sheet7'], ['', 'MOSFET-sheet8'], ['', 'MOSFET-sheet9']]
+10-26 11:07:24 replicate_layout.action_replicate_layout 179:Replicating layout
+10-26 11:07:24 replicate_layout.replicatelayout 927:Starting replication of sheets: [['', 'Ignition MOSFET'], ['', 'MOSFET-sheet'], ['', 'MOSFET-sheet10'], ['', 'MOSFET-sheet11'], ['', 'MOSFET-sheet2'], ['', 'MOSFET-sheet3'], ['', 'MOSFET-sheet4'], ['', 'MOSFET-sheet5'], ['', 'MOSFET-sheet6'], ['', 'MOSFET-sheet7'], ['', 'MOSFET-sheet8'], ['', 'MOSFET-sheet9']]
+on level: ['', 'MOSFET-sheet1']
+with tracks=True, zone=True, text=True, containing=True, remove=True, locked=False
+10-26 11:07:24 root 261:updating GUI message: 'Preparing for replication'
+10-26 11:07:24 root 266:updating GUI with: 0
+10-26 11:07:24 replicate_layout.replicatelayout 491:Getting the list of source footprints
+10-26 11:07:24 replicate_layout.replicatelayout 495:Getting the list of all the remaining footprints
+10-26 11:07:24 replicate_layout.replicatelayout 499:Getting nets local to source footprints
+10-26 11:07:24 replicate_layout.replicatelayout 503:Getting source bounding box
+10-26 11:07:24 replicate_layout.replicatelayout 507:Getting source tracks
+10-26 11:07:24 replicate_layout.replicatelayout 511:Getting source zones
+10-26 11:07:24 replicate_layout.replicatelayout 515:Getting source text items
+10-26 11:07:24 root 266:updating GUI with: 75
+10-26 11:07:24 replicate_layout.replicatelayout 519:Getting source text items
+10-26 11:07:24 replicate_layout.replicatelayout 958:Removing tracks and zones, before module placement
+10-26 11:07:24 root 261:updating GUI message: 'Removing zones and tracks'
+10-26 11:07:24 root 261:updating GUI message: 'Replicating footprints'
+10-26 11:07:24 replicate_layout.replicatelayout 525:Replicating footprints
+10-26 11:07:24 replicate_layout.replicatelayout 531:Replicating footprints on sheet ['', 'Ignition MOSFET']
+10-26 11:07:24 replicate_layout.replicatelayout 531:Replicating footprints on sheet ['', 'MOSFET-sheet']
+10-26 11:07:24 replicate_layout.replicatelayout 531:Replicating footprints on sheet ['', 'MOSFET-sheet10']
+10-26 11:07:24 replicate_layout.replicatelayout 531:Replicating footprints on sheet ['', 'MOSFET-sheet11']
+10-26 11:07:24 root 266:updating GUI with: 28
+10-26 11:07:24 replicate_layout.replicatelayout 531:Replicating footprints on sheet ['', 'MOSFET-sheet2']
+10-26 11:07:24 replicate_layout.replicatelayout 531:Replicating footprints on sheet ['', 'MOSFET-sheet3']
+10-26 11:07:24 replicate_layout.replicatelayout 531:Replicating footprints on sheet ['', 'MOSFET-sheet4']
+10-26 11:07:24 replicate_layout.replicatelayout 531:Replicating footprints on sheet ['', 'MOSFET-sheet5']
+10-26 11:07:24 replicate_layout.replicatelayout 531:Replicating footprints on sheet ['', 'MOSFET-sheet6']
+10-26 11:07:24 replicate_layout.replicatelayout 531:Replicating footprints on sheet ['', 'MOSFET-sheet7']
+10-26 11:07:24 replicate_layout.replicatelayout 531:Replicating footprints on sheet ['', 'MOSFET-sheet8']
+10-26 11:07:24 replicate_layout.replicatelayout 531:Replicating footprints on sheet ['', 'MOSFET-sheet9']
+10-26 11:07:24 replicate_layout.replicatelayout 966:Removing tracks and zones, after module placement
+10-26 11:07:24 root 261:updating GUI message: 'Removing zones and tracks'
+10-26 11:07:24 root 261:updating GUI message: 'Replicating tracks'
+10-26 11:07:24 replicate_layout.replicatelayout 657:Replicating tracks
+10-26 11:07:24 replicate_layout.replicatelayout 663:Replicating tracks on sheet ['', 'Ignition MOSFET']
+10-26 11:07:24 root 266:updating GUI with: 0
+10-26 11:07:24 replicate_layout.replicatelayout 663:Replicating tracks on sheet ['', 'MOSFET-sheet']
+10-26 11:07:24 replicate_layout.replicatelayout 663:Replicating tracks on sheet ['', 'MOSFET-sheet10']
+10-26 11:07:24 replicate_layout.replicatelayout 663:Replicating tracks on sheet ['', 'MOSFET-sheet11']
+10-26 11:07:24 replicate_layout.replicatelayout 663:Replicating tracks on sheet ['', 'MOSFET-sheet2']
+10-26 11:07:24 replicate_layout.replicatelayout 663:Replicating tracks on sheet ['', 'MOSFET-sheet3']
+10-26 11:07:24 replicate_layout.replicatelayout 663:Replicating tracks on sheet ['', 'MOSFET-sheet4']
+10-26 11:07:24 replicate_layout.replicatelayout 663:Replicating tracks on sheet ['', 'MOSFET-sheet5']
+10-26 11:07:24 replicate_layout.replicatelayout 663:Replicating tracks on sheet ['', 'MOSFET-sheet6']
+10-26 11:07:24 replicate_layout.replicatelayout 663:Replicating tracks on sheet ['', 'MOSFET-sheet7']
+10-26 11:07:24 replicate_layout.replicatelayout 663:Replicating tracks on sheet ['', 'MOSFET-sheet8']
+10-26 11:07:24 replicate_layout.replicatelayout 663:Replicating tracks on sheet ['', 'MOSFET-sheet9']
+10-26 11:07:24 root 261:updating GUI message: 'Replicating zones'
+10-26 11:07:24 replicate_layout.replicatelayout 708:Replicating zones
+10-26 11:07:24 replicate_layout.replicatelayout 715:Replicating zones on sheet ['', 'Ignition MOSFET']
+10-26 11:07:24 replicate_layout.replicatelayout 715:Replicating zones on sheet ['', 'MOSFET-sheet']
+10-26 11:07:24 replicate_layout.replicatelayout 715:Replicating zones on sheet ['', 'MOSFET-sheet10']
+10-26 11:07:24 replicate_layout.replicatelayout 715:Replicating zones on sheet ['', 'MOSFET-sheet11']
+10-26 11:07:24 replicate_layout.replicatelayout 715:Replicating zones on sheet ['', 'MOSFET-sheet2']
+10-26 11:07:24 replicate_layout.replicatelayout 715:Replicating zones on sheet ['', 'MOSFET-sheet3']
+10-26 11:07:24 replicate_layout.replicatelayout 715:Replicating zones on sheet ['', 'MOSFET-sheet4']
+10-26 11:07:24 replicate_layout.replicatelayout 715:Replicating zones on sheet ['', 'MOSFET-sheet5']
+10-26 11:07:24 replicate_layout.replicatelayout 715:Replicating zones on sheet ['', 'MOSFET-sheet6']
+10-26 11:07:24 replicate_layout.replicatelayout 715:Replicating zones on sheet ['', 'MOSFET-sheet7']
+10-26 11:07:24 replicate_layout.replicatelayout 715:Replicating zones on sheet ['', 'MOSFET-sheet8']
+10-26 11:07:24 replicate_layout.replicatelayout 715:Replicating zones on sheet ['', 'MOSFET-sheet9']
+10-26 11:07:24 root 261:updating GUI message: 'Replicating text'
+10-26 11:07:24 replicate_layout.replicatelayout 773:Replicating text
+10-26 11:07:24 replicate_layout.replicatelayout 780:Replicating text on sheet ['', 'Ignition MOSFET']
+10-26 11:07:24 replicate_layout.replicatelayout 780:Replicating text on sheet ['', 'MOSFET-sheet']
+10-26 11:07:24 replicate_layout.replicatelayout 780:Replicating text on sheet ['', 'MOSFET-sheet10']
+10-26 11:07:24 replicate_layout.replicatelayout 780:Replicating text on sheet ['', 'MOSFET-sheet11']
+10-26 11:07:24 replicate_layout.replicatelayout 780:Replicating text on sheet ['', 'MOSFET-sheet2']
+10-26 11:07:24 replicate_layout.replicatelayout 780:Replicating text on sheet ['', 'MOSFET-sheet3']
+10-26 11:07:24 replicate_layout.replicatelayout 780:Replicating text on sheet ['', 'MOSFET-sheet4']
+10-26 11:07:24 replicate_layout.replicatelayout 780:Replicating text on sheet ['', 'MOSFET-sheet5']
+10-26 11:07:24 replicate_layout.replicatelayout 780:Replicating text on sheet ['', 'MOSFET-sheet6']
+10-26 11:07:24 replicate_layout.replicatelayout 780:Replicating text on sheet ['', 'MOSFET-sheet7']
+10-26 11:07:24 replicate_layout.replicatelayout 780:Replicating text on sheet ['', 'MOSFET-sheet8']
+10-26 11:07:24 replicate_layout.replicatelayout 780:Replicating text on sheet ['', 'MOSFET-sheet9']
+10-26 11:07:24 root 261:updating GUI message: 'Replicating drawings'
+10-26 11:07:24 replicate_layout.replicatelayout 804:Replicating drawings
+10-26 11:07:24 replicate_layout.replicatelayout 810:Replicating drawings on sheet ['', 'Ignition MOSFET']
+10-26 11:07:24 replicate_layout.replicatelayout 810:Replicating drawings on sheet ['', 'MOSFET-sheet']
+10-26 11:07:24 replicate_layout.replicatelayout 810:Replicating drawings on sheet ['', 'MOSFET-sheet10']
+10-26 11:07:24 replicate_layout.replicatelayout 810:Replicating drawings on sheet ['', 'MOSFET-sheet11']
+10-26 11:07:24 replicate_layout.replicatelayout 810:Replicating drawings on sheet ['', 'MOSFET-sheet2']
+10-26 11:07:24 replicate_layout.replicatelayout 810:Replicating drawings on sheet ['', 'MOSFET-sheet3']
+10-26 11:07:24 replicate_layout.replicatelayout 810:Replicating drawings on sheet ['', 'MOSFET-sheet4']
+10-26 11:07:24 replicate_layout.replicatelayout 810:Replicating drawings on sheet ['', 'MOSFET-sheet5']
+10-26 11:07:24 replicate_layout.replicatelayout 810:Replicating drawings on sheet ['', 'MOSFET-sheet6']
+10-26 11:07:24 replicate_layout.replicatelayout 810:Replicating drawings on sheet ['', 'MOSFET-sheet7']
+10-26 11:07:24 replicate_layout.replicatelayout 810:Replicating drawings on sheet ['', 'MOSFET-sheet8']
+10-26 11:07:24 replicate_layout.replicatelayout 810:Replicating drawings on sheet ['', 'MOSFET-sheet9']
+10-26 11:07:24 root 261:updating GUI message: 'Removing duplicates'
+10-26 11:07:24 replicate_layout.action_replicate_layout 201:Replication complete

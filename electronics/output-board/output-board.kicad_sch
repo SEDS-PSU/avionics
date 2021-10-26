@@ -1779,7 +1779,6 @@
     )
   )
 
-  (junction (at 25.4 140.97) (diameter 0) (color 0 0 0 0))
   (junction (at 25.4 152.4) (diameter 0) (color 0 0 0 0))
   (junction (at 25.4 163.83) (diameter 0) (color 0 0 0 0))
   (junction (at 25.4 175.26) (diameter 0) (color 0 0 0 0))
@@ -1788,6 +1787,7 @@
   (junction (at 25.4 209.55) (diameter 0) (color 0 0 0 0))
   (junction (at 25.4 220.98) (diameter 0) (color 0 0 0 0))
   (junction (at 25.4 232.41) (diameter 0) (color 0 0 0 0))
+  (junction (at 25.4 243.84) (diameter 0) (color 0 0 0 0))
   (junction (at 26.67 278.13) (diameter 0) (color 0 0 0 0))
   (junction (at 26.67 289.56) (diameter 0) (color 0 0 0 0))
   (junction (at 36.83 45.72) (diameter 1.016) (color 0 0 0 0))
@@ -1850,10 +1850,6 @@
   (wire (pts (xy 25.4 81.28) (xy 35.56 81.28))
     (stroke (width 0) (type solid) (color 0 0 0 0))
     (uuid 8f5faea8-d960-4193-9a48-58a38f18cd7c)
-  )
-  (wire (pts (xy 25.4 137.16) (xy 25.4 140.97))
-    (stroke (width 0) (type default) (color 0 0 0 0))
-    (uuid 350044d3-bbd3-49d4-be48-8f258a188438)
   )
   (wire (pts (xy 25.4 140.97) (xy 25.4 152.4))
     (stroke (width 0) (type default) (color 0 0 0 0))
@@ -1926,6 +1922,10 @@
   (wire (pts (xy 25.4 243.84) (xy 25.4 232.41))
     (stroke (width 0) (type default) (color 0 0 0 0))
     (uuid 78b5c5e4-c2e9-43ad-8af1-d4be54473510)
+  )
+  (wire (pts (xy 25.4 243.84) (xy 25.4 250.19))
+    (stroke (width 0) (type default) (color 0 0 0 0))
+    (uuid 6ab0466f-a19f-47f6-9014-5263efc788ca)
   )
   (wire (pts (xy 26.67 266.7) (xy 29.21 266.7))
     (stroke (width 0) (type default) (color 0 0 0 0))
@@ -2705,8 +2705,7 @@
     (effects (font (size 1.27 1.27)) (justify left bottom))
     (uuid 3e6a565d-7c1e-4bbe-ba67-9d46b6759a72)
   )
-  (text "To Do:\n\n-Servo Valve Control?\n-Layout Board\n-Get Footprints"
-    (at 295.91 144.78 0)
+  (text "To Do:\n\n-Layout Board\n-Get Footprints" (at 295.91 144.78 0)
     (effects (font (size 10 10)) (justify left bottom))
     (uuid 25415620-b33d-4f49-ab81-58e8ec11073b)
   )
@@ -2792,22 +2791,6 @@
       (effects (font (size 1.27 1.27)) hide)
     )
     (pin "1" (uuid cc34bae4-11f6-4e25-b14d-a767d0a38d8f))
-  )
-
-  (symbol (lib_id "power:+12V") (at 25.4 137.16 0) (unit 1)
-    (in_bom yes) (on_board yes) (fields_autoplaced)
-    (uuid f690d10e-42b3-4dcd-b346-4624f5ab1baa)
-    (property "Reference" "#PWR0107" (id 0) (at 25.4 140.97 0)
-      (effects (font (size 1.27 1.27)) hide)
-    )
-    (property "Value" "+12V" (id 1) (at 25.4 133.5554 0))
-    (property "Footprint" "" (id 2) (at 25.4 137.16 0)
-      (effects (font (size 1.27 1.27)) hide)
-    )
-    (property "Datasheet" "" (id 3) (at 25.4 137.16 0)
-      (effects (font (size 1.27 1.27)) hide)
-    )
-    (pin "1" (uuid 6c6fde09-4a16-4470-a31c-6b2aadbafe4c))
   )
 
   (symbol (lib_id "power:+12V") (at 30.48 326.39 180) (unit 1)
@@ -2964,6 +2947,22 @@
       (effects (font (size 1.27 1.27)) hide)
     )
     (pin "1" (uuid 1c308837-b842-48d3-b801-f1f3098ae60f))
+  )
+
+  (symbol (lib_id "power:GND") (at 25.4 250.19 0) (unit 1)
+    (in_bom yes) (on_board yes) (fields_autoplaced)
+    (uuid 7eac883b-36e6-4fe4-9374-3a11d80f879d)
+    (property "Reference" "#PWR0107" (id 0) (at 25.4 256.54 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
+    (property "Value" "GND" (id 1) (at 25.4 254.7526 0))
+    (property "Footprint" "" (id 2) (at 25.4 250.19 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
+    (property "Datasheet" "" (id 3) (at 25.4 250.19 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
+    (pin "1" (uuid fd54d8d9-be0e-4680-801f-7534f670e960))
   )
 
   (symbol (lib_id "power:GND") (at 33.02 326.39 0) (unit 1)
@@ -4385,8 +4384,8 @@
     (path "/8e4f995f-67e9-47da-b3aa-58642e754b5c"
       (reference "#PWR0106") (unit 1) (value "GND") (footprint "")
     )
-    (path "/f690d10e-42b3-4dcd-b346-4624f5ab1baa"
-      (reference "#PWR0107") (unit 1) (value "+12V") (footprint "")
+    (path "/7eac883b-36e6-4fe4-9374-3a11d80f879d"
+      (reference "#PWR0107") (unit 1) (value "GND") (footprint "")
     )
     (path "/bd87855a-783c-4e33-a6c0-125ff9084867"
       (reference "#PWR0108") (unit 1) (value "+3V3") (footprint "")
@@ -4602,10 +4601,10 @@
       (reference "D13") (unit 1) (value "LED") (footprint "LED_SMD:LED_1206_3216Metric")
     )
     (path "/36b6bf08-79b4-4cbd-9663-410f8ea161a3/6b60855c-5bd9-463e-a130-45a0cde73160"
-      (reference "J1") (unit 1) (value "Conn_01x02_Male") (footprint "Connector_Molex:Molex_SL_171971-0002_1x02_P2.54mm_Vertical")
+      (reference "J1") (unit 1) (value "Conn_01x02_Male") (footprint "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Horizontal")
     )
     (path "/7c0b44ed-3289-4df7-a2ca-32e0eb184fe3/6b60855c-5bd9-463e-a130-45a0cde73160"
-      (reference "J2") (unit 1) (value "Conn_01x02_Male") (footprint "Connector_Molex:Molex_SL_171971-0002_1x02_P2.54mm_Vertical")
+      (reference "J2") (unit 1) (value "Conn_01x02_Male") (footprint "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Horizontal")
     )
     (path "/4598fa52-b178-42fa-b08e-f370d8204e39"
       (reference "J3") (unit 1) (value "12V In") (footprint "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical")
@@ -4620,40 +4619,40 @@
       (reference "J6") (unit 1) (value "Conn_01x02") (footprint "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical")
     )
     (path "/1ea806a6-f443-4e80-87ef-b585f08de103/6b60855c-5bd9-463e-a130-45a0cde73160"
-      (reference "J7") (unit 1) (value "Conn_01x02_Male") (footprint "Connector_Molex:Molex_SL_171971-0002_1x02_P2.54mm_Vertical")
+      (reference "J7") (unit 1) (value "Conn_01x02_Male") (footprint "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Horizontal")
     )
     (path "/95861652-6caa-440d-ae33-35c3e6668a9b/6b60855c-5bd9-463e-a130-45a0cde73160"
-      (reference "J8") (unit 1) (value "Conn_01x02_Male") (footprint "Connector_Molex:Molex_SL_171971-0002_1x02_P2.54mm_Vertical")
+      (reference "J8") (unit 1) (value "Conn_01x02_Male") (footprint "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Horizontal")
     )
     (path "/59ac11d2-41f8-4525-b5e6-c9b69cc3d64d/6b60855c-5bd9-463e-a130-45a0cde73160"
-      (reference "J9") (unit 1) (value "Conn_01x02_Male") (footprint "Connector_Molex:Molex_SL_171971-0002_1x02_P2.54mm_Vertical")
+      (reference "J9") (unit 1) (value "Conn_01x02_Male") (footprint "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Horizontal")
     )
     (path "/fa9df34d-6cdc-4ba2-a240-df8a947a170c/6b60855c-5bd9-463e-a130-45a0cde73160"
-      (reference "J10") (unit 1) (value "Conn_01x02_Male") (footprint "Connector_Molex:Molex_SL_171971-0002_1x02_P2.54mm_Vertical")
+      (reference "J10") (unit 1) (value "Conn_01x02_Male") (footprint "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Horizontal")
     )
     (path "/fd555d38-9efd-4090-b580-398f0ce3794c/6b60855c-5bd9-463e-a130-45a0cde73160"
-      (reference "J11") (unit 1) (value "Conn_01x02_Male") (footprint "Connector_Molex:Molex_SL_171971-0002_1x02_P2.54mm_Vertical")
+      (reference "J11") (unit 1) (value "Conn_01x02_Male") (footprint "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Horizontal")
     )
     (path "/b1c0de20-a4c8-4523-b668-2cf58a13b8ef/6b60855c-5bd9-463e-a130-45a0cde73160"
-      (reference "J12") (unit 1) (value "Conn_01x02_Male") (footprint "Connector_Molex:Molex_SL_171971-0002_1x02_P2.54mm_Vertical")
+      (reference "J12") (unit 1) (value "Conn_01x02_Male") (footprint "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Horizontal")
     )
     (path "/ca1ddf89-c899-4fe9-b54d-3dccafa5d0cc/6b60855c-5bd9-463e-a130-45a0cde73160"
-      (reference "J13") (unit 1) (value "Conn_01x02_Male") (footprint "Connector_Molex:Molex_SL_171971-0002_1x02_P2.54mm_Vertical")
+      (reference "J13") (unit 1) (value "Conn_01x02_Male") (footprint "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Horizontal")
     )
     (path "/dae9d700-6159-4d31-9d5b-15df687ec690"
       (reference "J14") (unit 1) (value "Arming switch") (footprint "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical")
     )
     (path "/f63df9f3-f635-4488-812a-e53c82698e77/6b60855c-5bd9-463e-a130-45a0cde73160"
-      (reference "J15") (unit 1) (value "Conn_01x02_Male") (footprint "Connector_Molex:Molex_SL_171971-0002_1x02_P2.54mm_Vertical")
+      (reference "J15") (unit 1) (value "Conn_01x02_Male") (footprint "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Horizontal")
     )
     (path "/1b6584c1-0d12-464b-be81-0b19bbe2e291/6b60855c-5bd9-463e-a130-45a0cde73160"
-      (reference "J16") (unit 1) (value "Conn_01x02_Male") (footprint "Connector_Molex:Molex_SL_171971-0002_1x02_P2.54mm_Vertical")
+      (reference "J16") (unit 1) (value "Conn_01x02_Male") (footprint "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Horizontal")
     )
     (path "/03ffcab8-edae-43b1-a3a4-8f66704c20eb/6b60855c-5bd9-463e-a130-45a0cde73160"
-      (reference "J17") (unit 1) (value "Conn_01x02_Male") (footprint "Connector_Molex:Molex_SL_171971-0002_1x02_P2.54mm_Vertical")
+      (reference "J17") (unit 1) (value "Conn_01x02_Male") (footprint "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Horizontal")
     )
     (path "/691537aa-0e14-4c5f-8530-ba42c3dce2d9/6b60855c-5bd9-463e-a130-45a0cde73160"
-      (reference "J18") (unit 1) (value "Conn_01x02_Male") (footprint "Connector_Molex:Molex_SL_171971-0002_1x02_P2.54mm_Vertical")
+      (reference "J18") (unit 1) (value "Conn_01x02_Male") (footprint "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Horizontal")
     )
     (path "/b06f02ce-a9d0-4544-ada1-f271ca89a2cc"
       (reference "L1") (unit 1) (value "10uH") (footprint "Inductor_SMD:L_0603_1608Metric")
