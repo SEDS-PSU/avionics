@@ -1,4 +1,6 @@
+// We don't have a `main` function (the initiation is handled by the rtic framework and by the microcontroller directly).
 #![no_main]
+// We're not running this in an operating system, so we only have access to the `core` library, not `std` (of which `core` is a subset).
 #![no_std]
 
 mod defmt_setup;
@@ -6,7 +8,33 @@ mod readings;
 use readings::Adc1Readings;
 use stm32f4xx_hal::{adc::Adc, dma::{PeripheralToMemory, Stream0, Transfer}, pac::{ADC1, DMA2}};
 
+// We're going to be using this type a couple of times and I don't want to type the whole thing out every time.
+//
+// ┌──────────────────────────────────────┐
+// │There are several DMA peripherals     │
+// │on the MCU. We're using DMA2.         │    ┌─────────────────────────────────┐
+// │                                      │    │This indicates that this transfer│
+// │Each DMA has multiple streams and for │    │is from a peripheral (ADC1) to   │
+// │various reasons, we're using stream 0.│    │a memory buffer.                 │
+// └───┬──────────────────────────────────┘    └──────────────┬──────────────────┘
+//     │                                                      │
+//     │    ┌──────────────────────────────────┐              │
+//     │    │This particular MCU has multiple  │              │    ┌───────────────────────┐
+//     │    │ADC peripherals. We're using ADC1.│              │    │Here's the type of that│
+//     │    │There's an `Adc<T>` type that's   │              │    |memory buffer.         │
+//     │    │generic on the particular ADC you │              │    └────────────┬──────────┘
+//     │    │use.                              │              │                 │
+//     │    └────────────────────────────┬─────┘              │                 │
+//     │                                 │                    │                 └──────────┐
+//     └─────────────────────────────┐   └──────┐             │                            │
+//                                   ▼          ▼             ▼                            ▼
 type DMATransfer = Transfer<Stream0<DMA2>, Adc<ADC1>, PeripheralToMemory, &'static mut Adc1Readings, 0>;
+//                                                                                                   ▲
+//                        ┌──────────────────────────────────────────────────┐                       │
+//                        │This device only has 8 channels that DMA transfers│                       │
+//                        │can use at a time, so this number indicates that  ├───────────────────────┘
+//                        │this transfer is going to use channel 0.          │
+//                        └──────────────────────────────────────────────────┘
 
 #[rtic::app(device = stm32f4xx_hal::pac, dispatchers = [EXTI0])]
 mod app {
