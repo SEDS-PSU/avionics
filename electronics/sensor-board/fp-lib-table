@@ -7,4 +7,5 @@
   (lib (name "MAX44252ASD-")(type "KiCad")(uri "${KIPRJMOD}/../libraries/ul_MAX44252ASD-/KiCAD/2021-10-15_02-36-06/footprints.pretty")(options "")(descr ""))
   (lib (name "LMC6036")(type "KiCad")(uri "${KIPRJMOD}/../libraries/LMC6036/SOP65P640X120-14N")(options "")(descr ""))
   (lib (name "MCP96RL01T")(type "KiCad")(uri "D:/NicksFiles/Documents/Penn State/Rocketry/repos/avionics/electronics/libraries/MCP96RL01T/MCP96RL01T.pretty")(options "")(descr ""))
+  (lib (name "K_type_thermo_conn_F")(type "KiCad")(uri "D:/NicksFiles/Documents/Penn State/Rocketry/repos/avionics/electronics/libraries/K_type_thermo_conn_F.pretty")(options "")(descr ""))
 )
