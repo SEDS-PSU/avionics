@@ -363,7 +363,7 @@
     "last_paths": {
       "gencad": "",
       "idf": "",
-      "netlist": "",
+      "netlist": "sensor-board.net",
       "specctra_dsn": "",
       "step": "",
       "vrml": ""
@@ -407,12 +407,8 @@
       ""
     ],
     [
-      "b32cc341-0351-47d0-8d95-77b5e14021d2",
-      "Thermocouple_1"
-    ],
-    [
-      "323803c7-8e88-4e7b-8a54-a7a48fd6d1e3",
-      "Thermocouple 2"
+      "993e22cc-8b33-44b7-98b3-bbbd11e9ffb1",
+      "Thermocouples"
     ],
     [
       "7f86c03b-4788-4ee3-8e3a-c7f88ba5f5f3",
