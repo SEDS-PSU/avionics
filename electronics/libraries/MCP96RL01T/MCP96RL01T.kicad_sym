@@ -18,11 +18,7 @@
       )
     )
     (symbol "MCP96RL01T_1_1"
-      (pin power_in line (at 0 17.78 270) (length 2.54)
-        (name "VDD" (effects (font (size 1.27 1.27))))
-        (number "" (effects (font (size 1.27 1.27))))
-      )
-      (pin power_in line (at -7.62 -17.78 90) (length 2.54) hide
+      (pin power_in line (at -7.62 -17.78 90) (length 2.54)
         (name "GND" (effects (font (size 1.27 1.27))))
         (number "1" (effects (font (size 1.27 1.27))))
       )
@@ -38,7 +34,7 @@
         (name "Alert_2" (effects (font (size 1.27 1.27))))
         (number "12" (effects (font (size 1.27 1.27))))
       )
-      (pin power_in line (at 2.54 -17.78 90) (length 2.54) hide
+      (pin power_in line (at 2.54 -17.78 90) (length 2.54)
         (name "GND" (effects (font (size 1.27 1.27))))
         (number "13" (effects (font (size 1.27 1.27))))
       )
@@ -54,11 +50,11 @@
         (name "ADDR" (effects (font (size 1.27 1.27))))
         (number "16" (effects (font (size 1.27 1.27))))
       )
-      (pin power_in line (at 5.08 -17.78 90) (length 2.54) hide
+      (pin power_in line (at 5.08 -17.78 90) (length 2.54)
         (name "GND" (effects (font (size 1.27 1.27))))
         (number "17" (effects (font (size 1.27 1.27))))
       )
-      (pin power_in line (at 7.62 -17.78 90) (length 2.54) hide
+      (pin power_in line (at 7.62 -17.78 90) (length 2.54)
         (name "GND" (effects (font (size 1.27 1.27))))
         (number "18" (effects (font (size 1.27 1.27))))
       )
@@ -74,7 +70,11 @@
         (name "SDA" (effects (font (size 1.27 1.27))))
         (number "20" (effects (font (size 1.27 1.27))))
       )
-      (pin power_in line (at -5.08 -17.78 90) (length 2.54) hide
+      (pin power_in line (at 10.16 -17.78 90) (length 2.54)
+        (name "Body_(gnd)" (effects (font (size 1.27 1.27))))
+        (number "21" (effects (font (size 1.27 1.27))))
+      )
+      (pin power_in line (at -5.08 -17.78 90) (length 2.54)
         (name "GND" (effects (font (size 1.27 1.27))))
         (number "3" (effects (font (size 1.27 1.27))))
       )
@@ -82,7 +82,7 @@
         (name "VIN-" (effects (font (size 1.27 1.27))))
         (number "4" (effects (font (size 1.27 1.27))))
       )
-      (pin power_in line (at -2.54 -17.78 90) (length 2.54) hide
+      (pin power_in line (at -2.54 -17.78 90) (length 2.54)
         (name "GND" (effects (font (size 1.27 1.27))))
         (number "5" (effects (font (size 1.27 1.27))))
       )
@@ -93,6 +93,10 @@
       (pin output line (at -15.24 -11.43 0) (length 2.54)
         (name "SC_Allert" (effects (font (size 1.27 1.27))))
         (number "7" (effects (font (size 1.27 1.27))))
+      )
+      (pin power_in line (at 0 17.78 270) (length 2.54)
+        (name "VDD" (effects (font (size 1.27 1.27))))
+        (number "8" (effects (font (size 1.27 1.27))))
       )
       (pin output line (at -15.24 -7.62 0) (length 2.54)
         (name "OC_Alert" (effects (font (size 1.27 1.27))))
