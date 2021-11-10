@@ -8,4 +8,5 @@
   (lib (name "LMC6036_custom")(type "KiCad")(uri "${KIPRJMOD}/../libraries/LMC6036/LMC6036_custom.kicad_sym")(options "")(descr ""))
   (lib (name "BSS806N (MOSFET)")(type "KiCad")(uri "${KIPRJMOD}/../libraries/BSS806N (MOSFET)/2021-09-18_15-04-13.kicad_sym")(options "")(descr ""))
   (lib (name "MCP96RL01T")(type "KiCad")(uri "${KIPRJMOD}/../libraries/MCP96RL01T/MCP96RL01T.kicad_sym")(options "")(descr ""))
+  (lib (name "STM32F105VBH6")(type "Legacy")(uri "${KIPRJMOD}/../libraries/STM32F105VBH6/KiCAD/2021-11-09_20-32-54/2021-11-09_20-32-54.lib")(options "")(descr ""))
 )
