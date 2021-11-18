@@ -419,6 +419,10 @@
     [
       "1e976c96-2752-4664-a134-e73beced1072",
       "24V to 12V Converter"
+    ],
+    [
+      "ee57e1c9-988c-4fbf-b669-89e06fdd5fb6",
+      "12V to 5V Converter"
     ]
   ],
   "text_variables": {}
