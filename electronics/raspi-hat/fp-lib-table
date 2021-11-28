@@ -1,0 +1,7 @@
+(fp_lib_table
+  (lib (name "MAX33012EASA+")(type "KiCad")(uri "${KIPRJMOD}/../libraries/MAX33012EASA+/footprints.pretty")(options "")(descr ""))
+  (lib (name "DMMT5401-7-F")(type "KiCad")(uri "${KIPRJMOD}/../libraries/ul_DMMT5401-7-F/footprints.pretty")(options "")(descr ""))
+  (lib (name "MYSGK02506BRSR")(type "KiCad")(uri "${KIPRJMOD}/../libraries/IC_Murata_MYSGK02506BRSR/eec.pretty")(options "")(descr ""))
+  (lib (name "MYMGA5R04RELA5RA")(type "KiCad")(uri "${KIPRJMOD}/../libraries/ul_MYMGA5R04RELA5RA/footprints.pretty")(options "")(descr ""))
+  (lib (name "Custom Footprints")(type "KiCad")(uri "${KIPRJMOD}/../libraries/CustomFootprints.pretty")(options "")(descr ""))
+)
