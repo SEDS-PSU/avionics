@@ -45,7 +45,7 @@
         "silk_text_upright": false,
         "zones": {
           "45_degree_only": false,
-          "min_clearance": 0.508
+          "min_clearance": 0.39999999999999997
         }
       },
       "diff_pair_dimensions": [
@@ -431,15 +431,11 @@
   },
   "sheets": [
     [
-      "59a87d54-f249-4076-8c70-66542783329b",
+      "e6521bef-4109-48f7-8b88-4121b0468927",
       ""
     ],
     [
-      "1e976c96-2752-4664-a134-e73beced1072",
-      "24V to 12V Converter"
-    ],
-    [
-      "ee57e1c9-988c-4fbf-b669-89e06fdd5fb6",
+      "4ed19592-a5c4-4f6f-8e35-67fef4315ee4",
       "12V to 5V Converter"
     ]
   ],
