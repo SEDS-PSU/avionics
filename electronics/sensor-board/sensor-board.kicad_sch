@@ -6253,7 +6253,7 @@
     (uuid 55f263ba-8276-4ff4-bdd9-8cf2cb2643e0)
     (property "Reference" "J3" (id 0) (at 28.702 128.524 0))
     (property "Value" "Supply_12V" (id 1) (at 28.702 125.73 0))
-    (property "Footprint" "Custom_Molex_SL_2.54:SL_2.54_H_2pin" (id 2) (at 26.67 120.65 0)
+    (property "Footprint" "CustomFootprints:PowerPoleThroughHole" (id 2) (at 26.67 120.65 0)
       (effects (font (size 1.27 1.27)) hide)
     )
     (property "Datasheet" "~" (id 3) (at 26.67 120.65 0)
@@ -6499,7 +6499,7 @@
     (uuid 735d9790-e5f7-4742-a7c7-c5bcd48b1b8a)
     (property "Reference" "J2" (id 0) (at 28.702 114.554 0))
     (property "Value" "Supply_24V" (id 1) (at 28.702 111.76 0))
-    (property "Footprint" "Custom_Molex_SL_2.54:SL_2.54_H_2pin" (id 2) (at 26.67 106.68 0)
+    (property "Footprint" "CustomFootprints:PowerPoleThroughHole" (id 2) (at 26.67 106.68 0)
       (effects (font (size 1.27 1.27)) hide)
     )
     (property "Datasheet" "~" (id 3) (at 26.67 106.68 0)
@@ -8511,10 +8511,10 @@
       (reference "J1") (unit 1) (value "SWD Header") (footprint "Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical")
     )
     (path "/735d9790-e5f7-4742-a7c7-c5bcd48b1b8a"
-      (reference "J2") (unit 1) (value "Supply_24V") (footprint "Custom_Molex_SL_2.54:SL_2.54_H_2pin")
+      (reference "J2") (unit 1) (value "Supply_24V") (footprint "CustomFootprints:PowerPoleThroughHole")
     )
     (path "/55f263ba-8276-4ff4-bdd9-8cf2cb2643e0"
-      (reference "J3") (unit 1) (value "Supply_12V") (footprint "Custom_Molex_SL_2.54:SL_2.54_H_2pin")
+      (reference "J3") (unit 1) (value "Supply_12V") (footprint "CustomFootprints:PowerPoleThroughHole")
     )
     (path "/5515d813-e497-40cb-928f-aa6e3abf6ed9"
       (reference "J4") (unit 1) (value "Load_C_1") (footprint "Custom_Molex_SL_2.54:SL_2.54_H_4pin")
