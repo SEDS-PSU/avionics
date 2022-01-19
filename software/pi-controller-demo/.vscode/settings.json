@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "types.h": "c",
+        "can.h": "c",
+        "sched.h": "c"
+    }
+}
