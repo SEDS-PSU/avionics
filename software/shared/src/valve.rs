@@ -3,15 +3,15 @@ use core::mem;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[repr(transparent)]
-pub struct Valves(u16);
+pub struct ValvesStates(u16);
 
-impl Valves {
+impl ValvesStates {
     pub const fn all_open() -> Self {
-        Valves(0)
+        ValvesStates(0)
     }
 
     pub const fn all_closed() -> Self {
-        Valves(!0)
+        ValvesStates(!0)
     }
 
     pub fn open(&mut self, valve: Valve) {
@@ -42,6 +42,7 @@ impl Valves {
 #[repr(u8)]
 pub enum Valve {
     FcO,
+    // etc
 }
 
 impl Valve {
