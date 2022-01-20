@@ -22,6 +22,16 @@ pub enum Request {
 
 const _: () = assert!(mem::size_of::<Request>() == 4);
 
+impl Request {
+    pub fn as_bytes(self) -> [u8; 4] {
+        unsafe { mem::transmute(self) }
+    }
+
+    pub fn from_bytes(bytes: [u8; 4]) -> Self {
+        unsafe { mem::transmute(bytes) }
+    }
+}
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Wait {
     WaitMs(NonZeroU16),
@@ -44,6 +54,16 @@ pub enum Command {
 
 const _: () = assert!(mem::size_of::<Command>() == 4);
 
+impl Command {
+    pub fn as_bytes(self) -> [u8; 4] {
+        unsafe { mem::transmute(self) }
+    }
+
+    pub fn from_bytes(bytes: [u8; 4]) -> Self {
+        unsafe { mem::transmute(bytes) }
+    }
+}
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[repr(C)]
 pub struct Status {
@@ -53,6 +73,16 @@ pub struct Status {
 }
 
 const _: () = assert!(mem::size_of::<Status>() == 4);
+
+impl Status {
+    pub fn as_bytes(self) -> [u8; 4] {
+        unsafe { mem::transmute(self) }
+    }
+
+    pub fn from_bytes(bytes: [u8; 4]) -> Self {
+        unsafe { mem::transmute(bytes) }
+    }
+}
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[repr(transparent)]

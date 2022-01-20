@@ -5,14 +5,31 @@ use core::mem;
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[repr(u8)]
 pub enum Request {
-    /// The sensor board should respond with 6 frames, each containing
-    /// four sensor readings.
+    /// The sensor board should respond with 6 frames.
+    /// The first contains the general status of the sensor board.
+    /// The following 5 frames each contain four sensor readings.
     GetSensorData,
     /// The sensor board should reset itself.
     Reset,
 }
 
 const _: () = assert!(mem::size_of::<Request>() == 1);
+
+impl Request {
+    pub fn as_bytes(self) -> [u8; 1] {
+        unsafe { mem::transmute(self) }
+    }
+
+    pub fn from_bytes(bytes: [u8; 1]) -> Self {
+        unsafe { mem::transmute(bytes) }
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[repr(C)]
+pub struct ResponseHeader {
+    pub doing_good: bool,
+}
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[repr(transparent)]
@@ -41,72 +58,71 @@ pub enum SensorError {
     Unknown,
 }
 
-pub mod response {
-    use super::*;
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[repr(C)]
+pub struct SensorReadings(SensorReading, SensorReading, SensorReading, SensorReading);
 
-    #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-    #[repr(C)]
-    pub struct Frame0 {
-        pub tc0: SensorReading,
-        pub tc1: SensorReading,
-        pub tc2: SensorReading,
-        pub tc3: SensorReading,
+const _: () = assert!(mem::size_of::<SensorReadings>() == 8);
+
+impl SensorReadings {
+    pub fn as_bytes(self) -> [u8; 8] {
+        unsafe { mem::transmute(self) }
     }
 
-    const _: () = assert!(mem::size_of::<Frame0>() == 8);
+    pub fn from_bytes(bytes: [u8; 8]) -> Self {
+        unsafe { mem::transmute(bytes) }
+    }
+}
 
-    #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-    #[repr(C)]
-    pub struct Frame1 {
-        pub tc4: SensorReading,
-        pub tc5: SensorReading,
-        pub tc6: SensorReading,
-        pub tc7: SensorReading,
+/// On sensor board, call the [`AllSensors::into_iter`] function to get an iterator over the
+/// the frames to send to the Pi.
+/// 
+/// On the Pi, call [`AllSensors::from_bytes`] to turn the raw data into [`AllSensors`].
+#[repr(C)]
+pub struct AllSensors {
+    // Thermocouples 
+    pub therm1: SensorReading,
+    pub therm2: SensorReading,
+    pub therm3: SensorReading,
+    pub therm4: SensorReading,
+    pub therm5: SensorReading,
+    pub therm6: SensorReading,
+    pub therm7: SensorReading,
+
+    // Flow Meters
+    pub flow1: SensorReading,
+    pub flow2: SensorReading,
+
+    // Load Cells
+    pub load1: SensorReading,
+    pub load2: SensorReading,
+
+    // Pressure Transducers
+    pub pressure1: SensorReading,
+    pub pressure2: SensorReading,
+    pub pressure3: SensorReading,
+    pub pressure4: SensorReading,
+    pub pressure5: SensorReading,
+    pub pressure6: SensorReading,
+    pub pressure7: SensorReading,
+    pub pressure8: SensorReading,
+    pub pressure9: SensorReading,
+}
+
+const _: () = assert!(mem::size_of::<AllSensors>() == 40);
+
+impl AllSensors {
+    pub fn from_bytes(bytes: &[u8; 40]) -> &AllSensors {
+        unsafe { &*(bytes as *const _ as *const _) }
     }
 
-    const _: () = assert!(mem::size_of::<Frame1>() == 8);
-
-    #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-    #[repr(C)]
-    pub struct Frame2 {
-        pub tc8: SensorReading,
-        pub tc9: SensorReading,
-        pub tc10: SensorReading,
-        pub tc11: SensorReading,
+    pub fn into_iter(&self) -> impl Iterator<Item = SensorReadings> {
+        [
+            SensorReadings(self.therm1, self.therm2, self.therm3, self.therm4),
+            SensorReadings(self.therm5, self.therm6, self.therm7, self.flow1),
+            SensorReadings(self.flow2, self.load1, self.load2, self.pressure1),
+            SensorReadings(self.pressure2, self.pressure3, self.pressure4, self.pressure5),
+            SensorReadings(self.pressure6, self.pressure7, self.pressure8, self.pressure9),
+        ].into_iter()
     }
-
-    const _: () = assert!(mem::size_of::<Frame2>() == 8);
-
-    #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-    #[repr(C)]
-    pub struct Frame3 {
-        pub tc12: SensorReading,
-        pub flow0: SensorReading,
-        pub flow1: SensorReading,
-        pub d: SensorReading,
-    }
-
-    const _: () = assert!(mem::size_of::<Frame3>() == 8);
-
-    #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-    #[repr(C)]
-    pub struct Frame4 {
-        pub some_sensor: SensorReading,
-        pub b: SensorReading,
-        pub c: SensorReading,
-        pub d: SensorReading,
-    }
-
-    const _: () = assert!(mem::size_of::<Frame4>() == 8);
-
-    #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-    #[repr(C)]
-    pub struct Frame5 {
-        pub some_sensor: SensorReading,
-        pub b: SensorReading,
-        pub c: SensorReading,
-        pub d: SensorReading,
-    }
-
-    const _: () = assert!(mem::size_of::<Frame5>() == 8);
 }
