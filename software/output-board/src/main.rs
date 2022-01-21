@@ -41,7 +41,10 @@ mod app {
         valve_states: Option<ValveStates>,
 
         /// CAN frame queue
-        can_tx_queue: Queue<Frame, 16>,
+        /// This has a capacity of 3, according to the documentation.
+        /// I don't think this will ever have more than one item in it
+        /// at a time, but it's a good idea to have a small slack.
+        can_tx_queue: Queue<Frame, 4>,
     }
 
     // Local resources go here
