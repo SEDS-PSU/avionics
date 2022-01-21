@@ -1,21 +1,34 @@
 #![no_main]
 #![no_std]
 
-use defmt_rtt as _; // global logger
+use defmt_rtt as _; use dwt_systick_monotonic::fugit;
+// global logger
 use stm32f1xx_hal as _; // memory layout
 use panic_probe as _;
 
 mod util;
 
-// TODO: Replace `some_hal::pac` with the path to the PAC
-#[rtic::app(device = stm32f1xx_hal::pac)]
-mod app {
-    use core::num::NonZeroU8;
+type Instant = fugit::Instant<u32, 1, 72_000_000>;
+type Duration = fugit::Duration<u32, 1, 72_000_000>;
 
-    use bxcan::{Interrupts, filter::Mask32, Tx, Rx};
-    use shared::pi_output::Request;
-    use stm32f1xx_hal::{prelude::*, can::Can, pac::CAN1};
+const COMMAND_TIMEOUT: Duration = Duration::millis(5);
+
+const RASPI_ID: bxcan::StandardId = if let Some(id) = bxcan::StandardId::new(shared::RASPI_ID) {
+    id
+} else {
+    panic!("RASPI_ID is not a valid standard CAN ID");
+};
+
+// TODO: Replace `some_hal::pac` with the path to the PAC
+#[rtic::app(device = stm32f1xx_hal::pac, dispatchers = [EXTI0])]
+mod app {
+    use bxcan::{Interrupts, filter::Mask32, Tx, Rx, Frame};
+    use heapless::spsc::Queue;
+    use shared::{pi_output::{Request, self}, ValveStates};
+    use stm32f1xx_hal::{prelude::*, can::Can, pac::{CAN1, Interrupt}};
     use dwt_systick_monotonic::DwtSystick;
+
+    use crate::{Instant, COMMAND_TIMEOUT, RASPI_ID};
 
     // The monotonic scheduler type
     #[monotonic(binds = SysTick, default = true)]
@@ -24,7 +37,11 @@ mod app {
     // Shared resources go here
     #[shared]
     struct Shared {
-        // TODO: Add resources
+        #[lock_free]
+        valve_states: Option<ValveStates>,
+
+        /// CAN frame queue
+        can_tx_queue: Queue<Frame, 16>,
     }
 
     // Local resources go here
@@ -32,6 +49,9 @@ mod app {
     struct Local {
         can_tx: Tx<Can<CAN1>>,
         can_rx: Rx<Can<CAN1>>,
+
+        commands_start: Option<Instant>,
+        commands_count: u8,
     }
 
     #[init]
@@ -80,10 +100,14 @@ mod app {
         (
             Shared {
                 // Initialization of shared resources go here
+                valve_states: None,
+                can_tx_queue: Queue::new(),
             },
             Local {
                 can_tx,
                 can_rx,
+                commands_start: None,
+                commands_count: 0,
             },
             init::Monotonics(mono),
         )
@@ -99,27 +123,141 @@ mod app {
         }
     }
 
-    #[task(binds = USB_LP_CAN_RX0, local = [
-        can_rx,
-        awaiting_commands_remaining: Option<NonZeroU8> = None,
-    ])]
+    /// This is fired every time the CAN controller has finished a frame transmission
+    /// or after the USB_HP_CAN_TX ISR is pended.
+    #[task(binds = USB_HP_CAN_TX, local = [can_tx], shared = [can_tx_queue])]
+    fn can_tx(cx: can_tx::Context) {
+        defmt::info!("can_tx");
+
+        let mut tx_queue = cx.shared.can_tx_queue;
+        let tx = cx.local.can_tx;
+
+        tx.clear_interrupt_flags();
+
+        tx_queue.lock(|tx_queue| {
+            while let Some(frame) = tx_queue.peek() {
+                match tx.transmit(frame) {
+                    Ok(status) => match status.dequeued_frame() {
+                        None => {
+                            // Frame was placed in a transmit buffer.
+                            tx_queue.dequeue();   
+                        }
+                        Some(pending_frame) => {
+                            // A lower priority frame was replaced with our higher-priority frame.
+                            // Put the lower priority frame back into the transmit queue.
+                            tx_queue.dequeue();
+                            enqueue_frame(tx_queue, pending_frame.clone());
+                        }
+                    }
+                    Err(nb::Error::WouldBlock) => break,
+                    Err(_) => unreachable!(),
+                }
+            }
+        });
+    }
+
+    fn enqueue_frame(queue: &mut Queue<Frame, 16>, frame: Frame) {
+        queue.enqueue(frame).unwrap();
+        rtic::pend(Interrupt::USB_HP_CAN_TX);
+    }
+
+    fn set_valves(valve_states: &mut Option<ValveStates>, new_states: ValveStates) {
+        defmt::info!("setting values states");
+        *valve_states = Some(new_states);
+        
+        todo!()
+    }
+
+    #[task(shared = [can_tx_queue, valve_states])]
+    fn send_status(cx: send_status::Context) {
+
+        let mut state = pi_output::State::new();
+
+        // TODO: check if armed and ignited.
+
+        let status = pi_output::Status {
+            states: *cx.shared.valve_states,
+            state,
+            error: None, // for now
+        };
+
+        let frame = bxcan::Frame::new_data(RASPI_ID, status.as_bytes());
+        
+        let mut tx_queue = cx.shared.can_tx_queue;
+
+        tx_queue.lock(|tx_queue| {
+            enqueue_frame(tx_queue, frame);
+        });
+    }
+
+    #[task(binds = USB_LP_CAN_RX0,
+        local = [
+            can_rx,
+            commands_start,
+            commands_count,
+        ],
+        shared = [valve_states]
+    )]
     fn can_rx0(cx: can_rx0::Context) {
         loop {
             match cx.local.can_rx.receive() {
                 Ok(frame) => {
-                    defmt::info!("Received a CAN frame!");
+                    defmt::info!("received a CAN frame");
 
                     let data = if let Some(data) = frame.data() {
-                        data
+                        data.as_ref()
                     } else {
                         continue; // go to next loop iteration
                     };
 
-                    if let Some(remaining_commands) = cx.local.awaiting_commands_remaining {
-                        
+                    let commands_count = *cx.local.commands_count;
+
+                    if let Some(commands_start) = *cx.local.commands_start {
+                        if monotonics::now() - commands_start < COMMAND_TIMEOUT && commands_count > 0{
+                            // This frame should contain one or two commands.
+                            if data.len() == 8 {
+                                // The frame contains two commands.
+                                todo!()
+                            } else if data.len() == 4 {
+                                // The frame contains only one command.
+                                todo!()
+                            } else {
+                                defmt::error!("invalid command frame");
+                                continue;
+                            }
+                        } else {
+                            // We timed out, so let's assume this frame is a request.
+                            *cx.local.commands_start = None;
+                        }
+                    }
+
+                    // Assume this frame is a request.
+
+                    // Make sure the frame has a size of 4.
+                    let data = if let Ok(data) = data.try_into() {
+                        data
                     } else {
-                        // The frame should contain a `Request`.
-                        let request = Request::from_bytes(data.try_into().unwrap());
+                        defmt::error!("frame data is not 4 bytes");
+                        continue;
+                    };
+
+                    let request = Request::from_bytes(data);
+
+                    match request {
+                        Request::GetStatus => send_status::spawn().expect("failed to spawn the `send_status` task"),
+                        Request::SetValvesImmediately(new_states) => {
+                            defmt::info!("setting valve states");
+                            set_valves(cx.shared.valve_states, new_states);
+                        }
+                        Request::BeginSequence { length } => {
+                            defmt::info!("beginning a sequence of {} commands", length);
+                            *cx.local.commands_start = Some(monotonics::now());
+                            *cx.local.commands_count = length;
+                        },
+                        Request::Reset => {
+                            defmt::info!("resetting");
+                            todo!()
+                        },
                     }
 
                 },

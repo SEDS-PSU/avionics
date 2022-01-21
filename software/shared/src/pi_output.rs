@@ -2,7 +2,7 @@
 
 use core::{num::NonZeroU16, mem};
 
-use crate::{ValvesStates, ValveState};
+use crate::{ValveStates, ValveState};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[repr(u8)]
@@ -10,7 +10,7 @@ pub enum Request {
     /// The output board should respond with status.
     GetStatus,
     /// The output board should set all valves to the given state immediately.
-    SetValvesImmediately(ValvesStates),
+    SetValvesImmediately(ValveStates),
     /// The following frames contain one or two commands ([`Command`]) each,
     /// adding up to `length` commands.
     BeginSequence {
@@ -67,19 +67,19 @@ impl Command {
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[repr(C)]
 pub struct Status {
-    pub states: ValvesStates,
+    pub states: Option<ValveStates>,
     pub state: State,
-    pub error: OutputBoardError,
+    pub error: Option<OutputBoardError>,
 }
 
-const _: () = assert!(mem::size_of::<Status>() == 4);
+const _: () = assert!(mem::size_of::<Status>() == 6);
 
 impl Status {
-    pub fn as_bytes(self) -> [u8; 4] {
+    pub fn as_bytes(self) -> [u8; 6] {
         unsafe { mem::transmute(self) }
     }
 
-    pub fn from_bytes(bytes: [u8; 4]) -> Self {
+    pub fn from_bytes(bytes: [u8; 6]) -> Self {
         unsafe { mem::transmute(bytes) }
     }
 }
