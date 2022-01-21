@@ -159,7 +159,7 @@ mod app {
         });
     }
 
-    fn enqueue_frame(queue: &mut Queue<Frame, 16>, frame: Frame) {
+    fn enqueue_frame(queue: &mut Queue<Frame, 4>, frame: Frame) {
         queue.enqueue(frame).unwrap();
         rtic::pend(Interrupt::USB_HP_CAN_TX);
     }
@@ -216,7 +216,7 @@ mod app {
                     let commands_count = *cx.local.commands_count;
 
                     if let Some(commands_start) = *cx.local.commands_start {
-                        if monotonics::now() - commands_start < COMMAND_TIMEOUT && commands_count > 0{
+                        if monotonics::now() - commands_start < COMMAND_TIMEOUT && commands_count > 0 {
                             // This frame should contain one or two commands.
                             if data.len() == 8 {
                                 // The frame contains two commands.
@@ -226,8 +226,9 @@ mod app {
                                 todo!()
                             } else {
                                 defmt::error!("invalid command frame");
-                                continue;
                             }
+
+                            continue;
                         } else {
                             // We timed out, so let's assume this frame is a request.
                             *cx.local.commands_start = None;
