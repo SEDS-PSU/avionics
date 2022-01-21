@@ -10,7 +10,10 @@ mod util;
 // TODO: Replace `some_hal::pac` with the path to the PAC
 #[rtic::app(device = stm32f1xx_hal::pac)]
 mod app {
+    use core::num::NonZeroU8;
+
     use bxcan::{Interrupts, filter::Mask32, Tx, Rx};
+    use shared::pi_output::Request;
     use stm32f1xx_hal::{prelude::*, can::Can, pac::CAN1};
     use dwt_systick_monotonic::DwtSystick;
 
@@ -96,12 +99,29 @@ mod app {
         }
     }
 
-    #[task(binds = USB_LP_CAN_RX0, local = [can_rx])]
+    #[task(binds = USB_LP_CAN_RX0, local = [
+        can_rx,
+        awaiting_commands_remaining: Option<NonZeroU8> = None,
+    ])]
     fn can_rx0(cx: can_rx0::Context) {
         loop {
             match cx.local.can_rx.receive() {
-                Ok(_frame) => {
+                Ok(frame) => {
                     defmt::info!("Received a CAN frame!");
+
+                    let data = if let Some(data) = frame.data() {
+                        data
+                    } else {
+                        continue; // go to next loop iteration
+                    };
+
+                    if let Some(remaining_commands) = cx.local.awaiting_commands_remaining {
+                        
+                    } else {
+                        // The frame should contain a `Request`.
+                        let request = Request::from_bytes(data.try_into().unwrap());
+                    }
+
                 },
                 Err(nb::Error::WouldBlock) => break,
                 Err(nb::Error::Other(_)) => {}, // Ignore overrun errors.
