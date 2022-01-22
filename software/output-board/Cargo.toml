@@ -19,6 +19,7 @@ bxcan = "0.6.2"
 nb = "1.0"
 shared = { path = "../shared" }
 heapless = "0.7.9"
+embedded-hal = "0.2.6"
 
 [dependencies.stm32f1xx-hal]
 version = "0.8.0"

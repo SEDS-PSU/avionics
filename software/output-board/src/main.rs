@@ -25,7 +25,7 @@ mod app {
     use bxcan::{Interrupts, filter::Mask32, Tx, Rx, Frame};
     use heapless::spsc::Queue;
     use shared::{pi_output::{Request, self}, ValveStates};
-    use stm32f1xx_hal::{prelude::*, can::Can, pac::{CAN1, Interrupt}};
+    use stm32f1xx_hal::{prelude::*, can::Can, pac::{CAN1, Interrupt}, gpio::{PullDown, Input, gpiob::PB15, gpioa::PA1, PullUp}};
     use dwt_systick_monotonic::DwtSystick;
 
     use crate::{Instant, COMMAND_TIMEOUT, RASPI_ID};
@@ -45,6 +45,9 @@ mod app {
         /// I don't think this will ever have more than one item in it
         /// at a time, but it's a good idea to have a small slack.
         can_tx_queue: Queue<Frame, 4>,
+
+        arming_switch: PB15<Input<PullDown>>,
+        ignition_detection: PA1<Input<PullUp>>,
     }
 
     // Local resources go here
@@ -73,6 +76,13 @@ mod app {
         // Set up CAN bus.
         // Based on https://github.com/stm32-rs/stm32f1xx-hal/blob/master/examples/can-rtic.rs.
         let can = Can::new(cx.device.CAN1);
+
+        // Pins
+        let mut gpioa = cx.device.GPIOA.split();
+        let mut gpiob = cx.device.GPIOB.split();
+
+        let arming_switch = gpiob.pb15.into_pull_down_input(&mut gpiob.crh);
+        let ignition_detection = gpioa.pa1.into_pull_up_input(&mut gpioa.crl);
 
         // TODO: Assign CAN pins
         
@@ -105,6 +115,9 @@ mod app {
                 // Initialization of shared resources go here
                 valve_states: None,
                 can_tx_queue: Queue::new(),
+
+                arming_switch,
+                ignition_detection,
             },
             Local {
                 can_tx,
@@ -171,12 +184,18 @@ mod app {
         todo!()
     }
 
-    #[task(shared = [can_tx_queue, valve_states])]
+    #[task(shared = [can_tx_queue, valve_states, &arming_switch, &ignition_detection])]
     fn send_status(cx: send_status::Context) {
 
         let mut state = pi_output::State::new();
 
-        // TODO: check if armed and ignited.
+        if cx.shared.arming_switch.is_high() {
+            state = state.set_armed();
+        }
+
+        if cx.shared.ignition_detection.is_high() {
+            state = state.set_ignited();
+        }
 
         let status = pi_output::Status {
             states: *cx.shared.valve_states,
