@@ -23,10 +23,11 @@ const RASPI_ID: bxcan::StandardId = if let Some(id) = bxcan::StandardId::new(sha
 #[rtic::app(device = stm32f1xx_hal::pac, dispatchers = [EXTI0])]
 mod app {
     use bxcan::{Interrupts, filter::Mask32, Tx, Rx, Frame};
-    use heapless::spsc::Queue;
-    use shared::{pi_output::{Request, self}, ValveStates};
+    use heapless::{spsc::Queue, Deque};
+    use shared::{pi_output, ValveStates};
     use stm32f1xx_hal::{prelude::*, can::Can, pac::{CAN1, Interrupt}, gpio::{PullDown, Input, gpiob::PB15, gpioa::PA1, PullUp}};
     use dwt_systick_monotonic::DwtSystick;
+    use crate::Duration;
 
     use crate::{Instant, COMMAND_TIMEOUT, RASPI_ID};
 
@@ -34,10 +35,14 @@ mod app {
     #[monotonic(binds = SysTick, default = true)]
     type Mono = DwtSystick<72_000_000 /* Hz */>;
 
+    pub enum CommandState {
+        Loading,
+        Executing(Option<execute_commands::SpawnHandle>),
+    }
+
     // Shared resources go here
     #[shared]
     struct Shared {
-        #[lock_free]
         valve_states: Option<ValveStates>,
 
         /// CAN frame queue
@@ -48,6 +53,12 @@ mod app {
 
         arming_switch: PB15<Input<PullDown>>,
         ignition_detection: PA1<Input<PullUp>>,
+
+        /// The `#[lock_free]` attribute makes sure that access to this
+        /// is always deterministic (since only tasks at a single priority
+        /// can access it).
+        #[lock_free]
+        commands: (CommandState, &'static mut Deque<pi_output::Command, 256>),
     }
 
     // Local resources go here
@@ -60,7 +71,7 @@ mod app {
         commands_count: u8,
     }
 
-    #[init]
+    #[init(local = [command_list: Deque<pi_output::Command, 256> = Deque::new()])]
     fn init(cx: init::Context) -> (Shared, Local, init::Monotonics) {
         defmt::info!("init");
 
@@ -118,6 +129,8 @@ mod app {
 
                 arming_switch,
                 ignition_detection,
+
+                commands: (CommandState::Loading, cx.local.command_list),
             },
             Local {
                 can_tx,
@@ -184,9 +197,41 @@ mod app {
         todo!()
     }
 
+    #[task(shared = [commands, valve_states])]
+    fn execute_commands(cx: execute_commands::Context) {
+        let execute_commands::SharedResources { commands: (command_state, command_list), mut valve_states } = cx.shared;
+
+        let old_spawn_handle = match command_state {
+            CommandState::Loading => return,
+            CommandState::Executing(maybe_spawn_handle) => maybe_spawn_handle,
+        };
+
+        *old_spawn_handle = if let Some(command) = command_list.pop_front() {
+            match command {
+                pi_output::Command::SetValves { states, wait } => {
+                    defmt::info!("setting valves");
+                    valve_states.lock(|valve_states| {
+                        set_valves(valve_states, states);
+                    });
+                    
+                    if let pi_output::Wait::WaitMs(ms) = wait {
+                        let handle = execute_commands::spawn_after(Duration::millis(ms.get() as u32)).expect("failed to spawn `execute_commands` task");
+                        Some(handle)
+                    } else {
+                        None
+                    }
+                },
+                pi_output::Command::Ignite { timeout } => {
+                    todo!("timeout: {}ms", timeout);
+                },
+            }
+        } else {
+            None
+        };
+    }
+
     #[task(shared = [can_tx_queue, valve_states, &arming_switch, &ignition_detection])]
     fn send_status(cx: send_status::Context) {
-
         let mut state = pi_output::State::new();
 
         if cx.shared.arming_switch.is_high() {
@@ -197,8 +242,11 @@ mod app {
             state = state.set_ignited();
         }
 
+        let mut states = cx.shared.valve_states;
+        let states = states.lock(|states| *states);
+
         let status = pi_output::Status {
-            states: *cx.shared.valve_states,
+            states,
             state,
             error: None, // for now
         };
@@ -218,11 +266,18 @@ mod app {
             commands_start,
             commands_count,
         ],
-        shared = [valve_states]
+        shared = [
+            valve_states,
+            commands,
+        ]
     )]
     fn can_rx0(cx: can_rx0::Context) {
+        let (command_state, command_list) = cx.shared.commands;
+        let mut valve_states = cx.shared.valve_states;
+        let can_rx0::LocalResources { can_rx, commands_start, commands_count } = cx.local;
+
         loop {
-            match cx.local.can_rx.receive() {
+            match can_rx.receive() {
                 Ok(frame) => {
                     defmt::info!("received a CAN frame");
 
@@ -232,25 +287,32 @@ mod app {
                         continue; // go to next loop iteration
                     };
 
-                    let commands_count = *cx.local.commands_count;
-
-                    if let Some(commands_start) = *cx.local.commands_start {
-                        if monotonics::now() - commands_start < COMMAND_TIMEOUT && commands_count > 0 {
-                            // This frame should contain one or two commands.
-                            if data.len() == 8 {
-                                // The frame contains two commands.
-                                todo!()
-                            } else if data.len() == 4 {
-                                // The frame contains only one command.
-                                todo!()
-                            } else {
-                                defmt::error!("invalid command frame");
+                    if let Some(timeout_begin) = *commands_start {
+                        if monotonics::now() - timeout_begin < COMMAND_TIMEOUT && *commands_count > 0 {
+                            if let CommandState::Loading = command_state{
+                                // We're in the wrong state.
+                                defmt::error!("attempted to load commands while executing commands");
+                                continue;
                             }
+
+                            assert!(*commands_count > 0);
+
+                            let data = if let Ok(data) = data.try_into() {
+                                data
+                            } else {
+                                defmt::error!("frame data is not 4 bytes");
+                                continue;
+                            };
+
+                            let command = pi_output::Command::from_bytes(data);
+                            // This can't overflow, since the length is a max of 255.
+                            command_list.push_back(command).unwrap();
+                            *commands_count -= 1;
 
                             continue;
                         } else {
                             // We timed out, so let's assume this frame is a request.
-                            *cx.local.commands_start = None;
+                            *commands_start = None;
                         }
                     }
 
@@ -264,22 +326,33 @@ mod app {
                         continue;
                     };
 
-                    let request = Request::from_bytes(data);
+                    let request = pi_output::Request::from_bytes(data);
 
                     match request {
-                        Request::GetStatus => send_status::spawn().expect("failed to spawn the `send_status` task"),
-                        Request::SetValvesImmediately(new_states) => {
+                        pi_output::Request::GetStatus => send_status::spawn().expect("failed to spawn the `send_status` task"),
+                        pi_output::Request::SetValvesImmediately(new_states) => {
                             defmt::info!("setting valve states");
-                            set_valves(cx.shared.valve_states, new_states);
+                            valve_states.lock(|valve_states| {
+                                set_valves(valve_states, new_states);
+                            });
+                            
+                            // Kill the currently executing list of commands.
+                            *command_state = CommandState::Loading;
+                            command_list.clear();
                         }
-                        Request::BeginSequence { length } => {
+                        pi_output::Request::BeginSequence { length } => {
                             defmt::info!("beginning a sequence of {} commands", length);
-                            *cx.local.commands_start = Some(monotonics::now());
-                            *cx.local.commands_count = length;
+                            *commands_start = Some(monotonics::now());
+                            *commands_count = length;
+
+                            // Kill the currently executing list of commands.
+                            *command_state = CommandState::Loading;
+                            command_list.clear();
                         },
-                        Request::Reset => {
+                        pi_output::Request::Reset => {
                             defmt::info!("resetting");
-                            todo!()
+                            defmt::flush();
+                            cortex_m::peripheral::SCB::sys_reset()
                         },
                     }
 

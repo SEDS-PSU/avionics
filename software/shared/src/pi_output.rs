@@ -2,7 +2,7 @@
 
 use core::{num::NonZeroU16, mem};
 
-use crate::{ValveStates, ValveState};
+use crate::ValveStates;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[repr(u8)]
@@ -44,7 +44,7 @@ const _: () = assert!(mem::size_of::<Wait>() == 2);
 #[repr(u8)]
 pub enum Command {
     SetValves {
-        states: ValveState,
+        states: ValveStates,
         wait: Wait,
     },
     Ignite {
@@ -52,14 +52,14 @@ pub enum Command {
     }
 }
 
-const _: () = assert!(mem::size_of::<Command>() == 4);
+const _: () = assert!(mem::size_of::<Command>() == 6);
 
 impl Command {
-    pub fn as_bytes(self) -> [u8; 4] {
+    pub fn as_bytes(self) -> [u8; 6] {
         unsafe { mem::transmute(self) }
     }
 
-    pub fn from_bytes(bytes: [u8; 4]) -> Self {
+    pub fn from_bytes(bytes: [u8; 6]) -> Self {
         unsafe { mem::transmute(bytes) }
     }
 }
