@@ -23,6 +23,8 @@ const RASPI_ID: bxcan::StandardId = if let Some(id) = bxcan::StandardId::new(sha
 // TODO: Replace `some_hal::pac` with the path to the PAC
 #[rtic::app(device = stm32f1xx_hal::pac, dispatchers = [EXTI0])]
 mod app {
+    use core::mem;
+
     use crate::Duration;
     use bxcan::{filter::Mask32, Frame, Interrupts, Rx, Tx};
     use dwt_systick_monotonic::DwtSystick;
@@ -45,7 +47,7 @@ mod app {
         Loading,
         Executing {
             handle: Option<execute_commands::SpawnHandle>,
-            in_ignition_timeout: bool,
+            ignition_delay: Option<u16>,
         },
     }
 
@@ -222,12 +224,12 @@ mod app {
             mut valve_states,
         } = cx.shared;
 
-        let (old_spawn_handle, in_ignition_timeout) = match command_state {
+        let (old_spawn_handle, ignition_delay) = match command_state {
             CommandState::Loading => return,
             CommandState::Executing {
                 handle: maybe_spawn_handle,
-                in_ignition_timeout,
-            } => (maybe_spawn_handle, in_ignition_timeout),
+                ignition_delay,
+            } => (maybe_spawn_handle, ignition_delay),
         };
 
         *old_spawn_handle = if let Some(command) = command_list.pop_front() {
@@ -238,7 +240,7 @@ mod app {
                         set_valves(valve_states, states);
                     });
 
-                    *in_ignition_timeout = false;
+                    *ignition_delay = None;
 
                     if let pi_output::Wait::WaitMs(ms) = wait {
                         let handle =
@@ -249,20 +251,17 @@ mod app {
                         None
                     }
                 }
-                pi_output::Command::Ignite { timeout } => {
-                    defmt::info!("Igniting the engine with a timeout of {}ms", timeout);
-                    *in_ignition_timeout = true;
+                pi_output::Command::Ignite { delay } => {
+                    defmt::info!("Igniting the engine with a delay of {}ms", delay);
+                    *ignition_delay = Some(delay);
 
                     // TODO: Actually ignite
 
-                    Some(
-                        execute_commands::spawn_after(Duration::millis(timeout as u32))
-                            .expect("failed to spawn `execute_commands` task"),
-                    )
+                    None
                 }
             }
         } else {
-            *in_ignition_timeout = false;
+            *ignition_delay = None;
             None
         };
     }
@@ -387,7 +386,14 @@ mod app {
                             });
 
                             // Kill the currently executing list of commands.
-                            *command_state = CommandState::Loading;
+                            if let CommandState::Executing {
+                                handle: Some(handle),
+                                ..
+                            } = mem::replace(command_state, CommandState::Loading)
+                            {
+                                defmt::info!("killing the currently executing command task");
+                                let _ = handle.cancel();
+                            }
                             command_list.clear();
                         }
                         pi_output::Request::BeginSequence { length } => {
@@ -396,7 +402,14 @@ mod app {
                             *commands_count = length;
 
                             // Kill the currently executing list of commands.
-                            *command_state = CommandState::Loading;
+                            if let CommandState::Executing {
+                                handle: Some(handle),
+                                ..
+                            } = mem::replace(command_state, CommandState::Loading)
+                            {
+                                defmt::info!("killing the currently executing command task");
+                                let _ = handle.cancel();
+                            }
                             command_list.clear();
                         }
                         pi_output::Request::Reset => {
@@ -426,15 +439,16 @@ mod app {
 
             match command_state {
                 CommandState::Executing {
-                    handle: maybe_handle,
-                    in_ignition_timeout: true,
+                    handle,
+                    ignition_delay,
                 } => {
-                    if let Some(handle) = maybe_handle.take() {
-                        // We're currently waiting for the ignition timeout to expire.
-                        // Cancel the timeout and reschedule the task to run immediately after this interrupt.
-                        if let Ok(handle) = handle.reschedule_after(Duration::millis(0)) {
-                            *maybe_handle = Some(handle);
-                        }
+                    if let Some(delay) = *ignition_delay {
+                        assert!(handle.is_none(), "There should be no execute command task scheduled");
+                        
+                        // Now that ignition has been detected, schedule the next command to run in `delay` ms.
+                        *handle =
+                        Some(execute_commands::spawn_after(Duration::millis(delay as u32)).expect("failed to spawn the `schedule_command` task"));
+                        *ignition_delay = None;
                     }
                 }
                 _ => {}

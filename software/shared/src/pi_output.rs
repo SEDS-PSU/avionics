@@ -11,8 +11,7 @@ pub enum Request {
     GetStatus,
     /// The output board should set all valves to the given state immediately.
     SetValvesImmediately(ValveStates),
-    /// The following frames contain one or two commands ([`Command`]) each,
-    /// adding up to `length` commands.
+    /// The following `length` frames each contain one command ([`Command`]) each.
     BeginSequence {
         length: u8
     },
@@ -48,7 +47,9 @@ pub enum Command {
         wait: Wait,
     },
     Ignite {
-        timeout: u16,
+        /// The between ignition and the next command being executed.
+        /// This is in milliseconds.
+        delay: u16,
     }
 }
 
