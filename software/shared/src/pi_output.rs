@@ -2,7 +2,7 @@
 
 use core::{num::NonZeroU16, mem};
 
-use crate::ValveStates;
+use crate::PackedValves;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[repr(u8)]
@@ -10,7 +10,7 @@ pub enum Request {
     /// The output board should respond with status.
     GetStatus,
     /// The output board should set all valves to the given state immediately.
-    SetValvesImmediately(ValveStates),
+    SetValvesImmediately(PackedValves),
     /// The following `length` frames each contain one command ([`Command`]) each.
     BeginSequence {
         length: u8
@@ -43,7 +43,7 @@ const _: () = assert!(mem::size_of::<Wait>() == 2);
 #[repr(u8)]
 pub enum Command {
     SetValves {
-        states: ValveStates,
+        states: PackedValves,
         wait: Wait,
     },
     Ignite {
@@ -68,7 +68,7 @@ impl Command {
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[repr(C)]
 pub struct Status {
-    pub states: Option<ValveStates>,
+    pub states: Option<PackedValves>,
     pub state: State,
     pub error: Option<OutputBoardError>,
 }

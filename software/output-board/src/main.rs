@@ -29,7 +29,7 @@ mod app {
     use bxcan::{filter::Mask32, Frame, Interrupts, Rx, Tx};
     use dwt_systick_monotonic::DwtSystick;
     use heapless::{spsc::Queue, Deque};
-    use shared::{pi_output, ValveStates};
+    use shared::{pi_output, Valves, PackedValves};
     use stm32f1xx_hal::{
         can::Can,
         gpio::{gpioa::PA1, gpiob::PB15, Edge, ExtiPin, Input, PullDown, PullUp},
@@ -51,10 +51,14 @@ mod app {
         },
     }
 
+    pub struct ValvePins {
+
+    }
+
     // Shared resources go here
     #[shared]
     struct Shared {
-        valve_states: Option<ValveStates>,
+        valve_states: Option<Valves>,
 
         /// CAN frame queue
         /// This has a capacity of 3, according to the documentation.
@@ -80,6 +84,8 @@ mod app {
 
         commands_start: Option<Instant>,
         commands_count: u8,
+
+        valve_pins: ValvePins,
     }
 
     #[init(local = [command_list: Deque<pi_output::Command, 256> = Deque::new()])]
@@ -157,6 +163,7 @@ mod app {
                 can_rx,
                 commands_start: None,
                 commands_count: 0,
+                valve_pins: ValvePins {},
             },
             init::Monotonics(mono),
         )
@@ -210,18 +217,24 @@ mod app {
         rtic::pend(Interrupt::USB_HP_CAN_TX);
     }
 
-    fn set_valves(valve_states: &mut Option<ValveStates>, new_states: ValveStates) {
+    #[task(shared = [valve_states], local = [valve_pins])]
+    fn set_valves(cx: set_valves::Context, new_states: PackedValves) {
         defmt::info!("setting values states");
-        *valve_states = Some(new_states);
 
-        todo!()
+        let set_valves::SharedResources { mut valve_states } = cx.shared;
+        // let set_valves::LocalResources { valve_pins } = cx.local;
+        
+        let new_states = new_states.into();
+
+        valve_states.lock(|valve_states| *valve_states = Some(new_states));
+
+        todo!("actually set the valves");
     }
 
-    #[task(shared = [commands, valve_states])]
+    #[task(shared = [commands])]
     fn execute_commands(cx: execute_commands::Context) {
         let execute_commands::SharedResources {
             commands: (command_state, command_list),
-            mut valve_states,
         } = cx.shared;
 
         let (old_spawn_handle, ignition_delay) = match command_state {
@@ -236,10 +249,7 @@ mod app {
             match command {
                 pi_output::Command::SetValves { states, wait } => {
                     defmt::info!("setting valves");
-                    valve_states.lock(|valve_states| {
-                        set_valves(valve_states, states);
-                    });
-
+                    set_valves::spawn(states).expect("failed to spawn the `set_valves` task");
                     *ignition_delay = None;
 
                     if let pi_output::Wait::WaitMs(ms) = wait {
@@ -282,7 +292,7 @@ mod app {
         });
 
         let mut states = cx.shared.valve_states;
-        let states = states.lock(|states| *states);
+        let states = states.lock(|states| states.map(Into::into));
 
         let status = pi_output::Status {
             states,
@@ -306,13 +316,11 @@ mod app {
             commands_count,
         ],
         shared = [
-            valve_states,
             commands,
         ]
     )]
     fn can_rx0(cx: can_rx0::Context) {
         let (command_state, command_list) = cx.shared.commands;
-        let mut valve_states = cx.shared.valve_states;
         let can_rx0::LocalResources {
             can_rx,
             commands_start,
@@ -381,9 +389,8 @@ mod app {
                         }
                         pi_output::Request::SetValvesImmediately(new_states) => {
                             defmt::info!("setting valve states");
-                            valve_states.lock(|valve_states| {
-                                set_valves(valve_states, new_states);
-                            });
+
+                            set_valves::spawn(new_states).expect("failed to spawn the `set_valves` task");
 
                             // Kill the currently executing list of commands.
                             if let CommandState::Executing {
