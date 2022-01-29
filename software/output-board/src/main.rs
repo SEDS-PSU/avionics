@@ -29,10 +29,14 @@ mod app {
     use bxcan::{filter::Mask32, Frame, Interrupts, Rx, Tx};
     use dwt_systick_monotonic::DwtSystick;
     use heapless::{spsc::Queue, Deque};
-    use shared::{pi_output, Valves, PackedValves};
+    use shared::{pi_output, PackedValves, ThreeWay, TwoWay, Valves};
     use stm32f1xx_hal::{
         can::Can,
-        gpio::{gpioa::PA1, gpiob::PB15, Edge, ExtiPin, Input, PullDown, PullUp},
+        gpio::{
+            gpioa::PA1,
+            gpiob::{PB0, PB1, PB10, PB11, PB12, PB15, PB2, PB3, PB4, PB5, PB6, PB7, PB8, PB9},
+            Edge, ExtiPin, Input, Output, PinState, PullDown, PullUp, PushPull,
+        },
         pac::{Interrupt, CAN1},
         prelude::*,
     };
@@ -51,8 +55,21 @@ mod app {
         },
     }
 
-    pub struct ValvePins {
+    pub struct ActuationPins {
+        solenoid1: PB1<Output<PushPull>>,
+        solenoid2: PB2<Output<PushPull>>,
+        solenoid3: PB3<Output<PushPull>>,
+        solenoid4: PB4<Output<PushPull>>,
+        solenoid5: PB5<Output<PushPull>>,
+        solenoid6: PB6<Output<PushPull>>,
+        solenoid7: PB7<Output<PushPull>>,
+        solenoid8: PB0<Output<PushPull>>,
+        // solenoid9: PB8<Output<PushPull>>,
+        // solenoid10: PB9<Output<PushPull>>,
 
+        // These are walled-off by the arming mosfet.
+        main_fuel_solenoid: PB12<Output<PushPull>>,
+        main_oxidizer_solenoid: PB11<Output<PushPull>>,
     }
 
     // Shared resources go here
@@ -85,7 +102,9 @@ mod app {
         commands_start: Option<Instant>,
         commands_count: u8,
 
-        valve_pins: ValvePins,
+        actuation_pins: ActuationPins,
+        /// This is walled-off by the arming mosfet.
+        igniter_pin: PB10<Output<PushPull>>,
     }
 
     #[init(local = [command_list: Deque<pi_output::Command, 256> = Deque::new()])]
@@ -112,8 +131,29 @@ mod app {
         let mut gpioa = cx.device.GPIOA.split();
         let mut gpiob = cx.device.GPIOB.split();
 
+        // The pb3 and pb4 pins are used by the JTAG debugger initially.
+        // We need to disable the JTAG peripheral to use them.
+        let (_, pb3, pb4) = afio.mapr.disable_jtag(gpioa.pa15, gpiob.pb3, gpiob.pb4);
+
         let arming_switch = gpiob.pb15.into_pull_down_input(&mut gpiob.crh);
         let mut ignition_detection = gpioa.pa1.into_pull_up_input(&mut gpioa.crl);
+
+        let actuation_pins = ActuationPins {
+            solenoid1: gpiob.pb1.into_push_pull_output(&mut gpiob.crl),
+            solenoid2: gpiob.pb2.into_push_pull_output(&mut gpiob.crl),
+            solenoid3: pb3.into_push_pull_output(&mut gpiob.crl),
+            solenoid4: pb4.into_push_pull_output(&mut gpiob.crl),
+            solenoid5: gpiob.pb5.into_push_pull_output(&mut gpiob.crl),
+            solenoid6: gpiob.pb6.into_push_pull_output(&mut gpiob.crl),
+            solenoid7: gpiob.pb7.into_push_pull_output(&mut gpiob.crl),
+            solenoid8: gpiob.pb0.into_push_pull_output(&mut gpiob.crl),
+            // solenoid9: gpiob.pb8.into_push_pull_output(&mut gpiob.crh),
+            // solenoid10: gpiob.pb9.into_push_pull_output(&mut gpiob.crh),
+            main_fuel_solenoid: gpiob.pb12.into_push_pull_output(&mut gpiob.crh),
+            main_oxidizer_solenoid: gpiob.pb11.into_push_pull_output(&mut gpiob.crh),
+        };
+
+        let igniter_pin = gpiob.pb10.into_push_pull_output(&mut gpiob.crh);
 
         // Set up the ignition detection interrupt handler.
         // This will trigger on EXTI1.
@@ -163,7 +203,8 @@ mod app {
                 can_rx,
                 commands_start: None,
                 commands_count: 0,
-                valve_pins: ValvePins {},
+                actuation_pins,
+                igniter_pin,
             },
             init::Monotonics(mono),
         )
@@ -217,18 +258,57 @@ mod app {
         rtic::pend(Interrupt::USB_HP_CAN_TX);
     }
 
-    #[task(shared = [valve_states], local = [valve_pins])]
+    #[task(local = [igniter_pin])]
+    fn ignite(cx: ignite::Context) {
+        defmt::info!("igniting!");
+
+        let igniter_pin = cx.local.igniter_pin;
+
+        igniter_pin.set_high();
+    }
+
+    #[task(shared = [valve_states], local = [actuation_pins])]
     fn set_valves(cx: set_valves::Context, new_states: PackedValves) {
         defmt::info!("setting values states");
 
         let set_valves::SharedResources { mut valve_states } = cx.shared;
-        // let set_valves::LocalResources { valve_pins } = cx.local;
-        
+        let set_valves::LocalResources { actuation_pins } = cx.local;
+
         let new_states = new_states.into();
 
         valve_states.lock(|valve_states| *valve_states = Some(new_states));
 
-        todo!("actually set the valves");
+        // This is the source of truth for mapping valves to output board connectors.
+
+        fn a(v: TwoWay) -> PinState {
+            match v {
+                TwoWay::Open => PinState::Low,
+                TwoWay::Closed => PinState::High,
+            }
+        }
+
+        fn b(v: ThreeWay) -> PinState {
+            match v {
+                ThreeWay::NitrogenPathway => PinState::Low,
+                ThreeWay::FuelOxidizer => PinState::High,
+            }
+        }
+
+        actuation_pins.solenoid1.set_state(a(new_states.fc_fp));
+        actuation_pins.solenoid2.set_state(a(new_states.fc_op));
+        actuation_pins.solenoid3.set_state(a(new_states.fo_p));
+        actuation_pins.solenoid4.set_state(a(new_states.fo_fp));
+        actuation_pins.solenoid5.set_state(a(new_states.fc_p));
+        actuation_pins.solenoid6.set_state(a(new_states.fc_op));
+        actuation_pins.solenoid7.set_state(a(new_states.fc1_o));
+        actuation_pins.solenoid8.set_state(a(new_states.fc2_o));
+
+        actuation_pins
+            .main_fuel_solenoid
+            .set_state(b(new_states.pv_f));
+        actuation_pins
+            .main_oxidizer_solenoid
+            .set_state(b(new_states.pv_o));
     }
 
     #[task(shared = [commands])]
@@ -265,7 +345,7 @@ mod app {
                     defmt::info!("Igniting the engine with a delay of {}ms", delay);
                     *ignition_delay = Some(delay);
 
-                    // TODO: Actually ignite
+                    ignite::spawn().expect("failed to spawn the `ignite` task");
 
                     None
                 }
@@ -390,7 +470,8 @@ mod app {
                         pi_output::Request::SetValvesImmediately(new_states) => {
                             defmt::info!("setting valve states");
 
-                            set_valves::spawn(new_states).expect("failed to spawn the `set_valves` task");
+                            set_valves::spawn(new_states)
+                                .expect("failed to spawn the `set_valves` task");
 
                             // Kill the currently executing list of commands.
                             if let CommandState::Executing {
@@ -450,11 +531,16 @@ mod app {
                     ignition_delay,
                 } => {
                     if let Some(delay) = *ignition_delay {
-                        assert!(handle.is_none(), "There should be no execute command task scheduled");
-                        
+                        assert!(
+                            handle.is_none(),
+                            "There should be no execute command task scheduled"
+                        );
+
                         // Now that ignition has been detected, schedule the next command to run in `delay` ms.
-                        *handle =
-                        Some(execute_commands::spawn_after(Duration::millis(delay as u32)).expect("failed to spawn the `schedule_command` task"));
+                        *handle = Some(
+                            execute_commands::spawn_after(Duration::millis(delay as u32))
+                                .expect("failed to spawn the `schedule_command` task"),
+                        );
                         *ignition_delay = None;
                     }
                 }
