@@ -20,7 +20,6 @@ const RASPI_ID: bxcan::StandardId = if let Some(id) = bxcan::StandardId::new(sha
     panic!("RASPI_ID is not a valid standard CAN ID");
 };
 
-// TODO: Replace `some_hal::pac` with the path to the PAC
 #[rtic::app(device = stm32f1xx_hal::pac, dispatchers = [EXTI0])]
 mod app {
     use core::mem;
@@ -34,7 +33,7 @@ mod app {
         can::Can,
         gpio::{
             gpioa::PA1,
-            gpiob::{PB0, PB1, PB10, PB11, PB12, PB15, PB2, PB3, PB4, PB5, PB6, PB7, PB8, PB9},
+            gpiob::{PB0, PB1, PB10, PB11, PB12, PB15, PB2, PB3, PB4, PB5, PB6, PB7},
             Edge, ExtiPin, Input, Output, PinState, PullDown, PullUp, PushPull,
         },
         pac::{Interrupt, CAN1},
@@ -117,9 +116,10 @@ mod app {
 
         let clocks = rcc
             .cfgr
+            .use_hse(25.mhz())
             // do we need other stuff here?
-            .sysclk(72.mhz())
-            .pclk1(16.mhz())
+            .sysclk(36.mhz())
+            .pclk1(18.mhz())
             .freeze(&mut flash.acr);
 
         // Set up CAN bus.
@@ -161,12 +161,15 @@ mod app {
         ignition_detection.enable_interrupt(&mut exti);
         ignition_detection.trigger_on_edge(&mut exti, Edge::Rising);
 
-        // TODO: Assign CAN pins
+        let can_rx_pin = gpioa.pa11.into_floating_input(&mut gpioa.crh);
+        let can_tx_pin = gpioa.pa12.into_alternate_push_pull(&mut gpioa.crh);
+
+        can.assign_pins((can_tx_pin, can_rx_pin), &mut afio.mapr);
 
         // APB1 (PCLK1): 16MHz, Bit rate: 1000kBit/s, Sample Point 87.5%
         // Value was calculated with http://www.bittiming.can-wiki.info/
         let mut can = bxcan::Can::builder(can)
-            .set_bit_timing(0x001c_0000)
+            .set_bit_timing(0x001e0000)
             .leave_disabled();
 
         can.modify_filters().enable_bank(0, Mask32::accept_all());
@@ -183,6 +186,8 @@ mod app {
         let mut dcb = cx.core.DCB;
         let dwt = cx.core.DWT;
         let systick = cx.core.SYST;
+
+        defmt::info!("syclk: {}", clocks.sysclk().0);
 
         let mono = DwtSystick::new(&mut dcb, dwt, systick, clocks.sysclk().0);
 
