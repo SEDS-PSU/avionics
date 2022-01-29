@@ -60,7 +60,7 @@ pub enum SensorError {
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[repr(C)]
-pub struct SensorReadings(SensorReading, SensorReading, SensorReading, SensorReading);
+pub struct SensorReadings(pub SensorReading, pub SensorReading, pub SensorReading, pub SensorReading);
 
 const _: () = assert!(mem::size_of::<SensorReadings>() == 8);
 
@@ -81,32 +81,33 @@ impl SensorReadings {
 #[repr(C)]
 pub struct AllSensors {
     // Thermocouples 
-    pub therm1: SensorReading,
-    pub therm2: SensorReading,
-    pub therm3: SensorReading,
-    pub therm4: SensorReading,
-    pub therm5: SensorReading,
-    pub therm6: SensorReading,
+    pub tc1_e: SensorReading,
+    pub tc2_e: SensorReading,
+    pub tc1_f: SensorReading,
+    pub tc2_f: SensorReading,
+    pub tc1_o: SensorReading,
+    pub tc5_o: SensorReading,
+    /// Unused?
     pub therm7: SensorReading,
 
     // Flow Meters
-    pub flow1: SensorReading,
-    pub flow2: SensorReading,
+    pub fm_f: SensorReading,
+    pub fm_o: SensorReading,
 
     // Load Cells
     pub load1: SensorReading,
     pub load2: SensorReading,
 
     // Pressure Transducers
-    pub pressure1: SensorReading,
-    pub pressure2: SensorReading,
-    pub pressure3: SensorReading,
-    pub pressure4: SensorReading,
-    pub pressure5: SensorReading,
-    pub pressure6: SensorReading,
-    pub pressure7: SensorReading,
-    pub pressure8: SensorReading,
-    pub pressure9: SensorReading,
+    pub pt1_f: SensorReading,
+    pub pt2_f: SensorReading,
+    pub pt1_e: SensorReading,
+    pub pt2_e: SensorReading,
+    pub pt1_o: SensorReading,
+    pub pt2_o: SensorReading,
+    pub pt4_o: SensorReading,
+    pub pt1_p: SensorReading,
+    pub pt2_p: SensorReading,
 }
 
 const _: () = assert!(mem::size_of::<AllSensors>() == 40);
@@ -116,13 +117,13 @@ impl AllSensors {
         unsafe { &*(bytes as *const _ as *const _) }
     }
 
-    pub fn into_iter(&self) -> impl Iterator<Item = SensorReadings> {
+    pub fn into_iter(&self) -> [SensorReadings; 5] {
         [
-            SensorReadings(self.therm1, self.therm2, self.therm3, self.therm4),
-            SensorReadings(self.therm5, self.therm6, self.therm7, self.flow1),
-            SensorReadings(self.flow2, self.load1, self.load2, self.pressure1),
-            SensorReadings(self.pressure2, self.pressure3, self.pressure4, self.pressure5),
-            SensorReadings(self.pressure6, self.pressure7, self.pressure8, self.pressure9),
-        ].into_iter()
+            SensorReadings(self.tc1_e, self.tc2_e, self.tc1_f, self.tc2_f),
+            SensorReadings(self.tc1_o, self.tc5_o, self.therm7, self.fm_f),
+            SensorReadings(self.fm_o, self.load1, self.load2, self.pt1_f),
+            SensorReadings(self.pt2_f, self.pt1_e, self.pt2_e, self.pt1_o),
+            SensorReadings(self.pt2_o, self.pt4_o, self.pt1_p, self.pt2_p),
+        ]
     }
 }
