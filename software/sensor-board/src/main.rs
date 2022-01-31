@@ -32,7 +32,7 @@ mod app {
     use heapless::{spsc::Queue};
     use mcp96x::{MCP96X, ThermocoupleType, FilterCoefficient};
     use postcard::MaxSize;
-    use shared::pi_sensor::{self, SensorReading, Temperature, SensorError};
+    use shared::pi_sensor::{self, SensorReading, Temperature, SensorError, Force};
     use stm32f1xx_hal::{
         can::Can,
         pac::{Interrupt, CAN1, ADC1, I2C1},
@@ -248,28 +248,34 @@ mod app {
         let read_adc1::LocalResources { adc1, analog_pins } = cx.local;
         let mut sensor_data = cx.shared.sensor_data;
 
-        let c = |res: nb::Result<u16, ()>| match res {
+        let s = |res: nb::Result<u16, ()>| match res {
             Ok(v) => SensorReading::new(v),
             Err(_) => SensorReading::new_error(SensorError::Unknown),
         };
 
+        let l = |res| match res {
+            Ok(v) => Force::new(v),
+            Err(_) => Force::new_error(SensorError::Unknown),
+        };
+
         // This is the source of truth for these sensor to pin mappings.
 
-        let fm_f = c(adc1.read(&mut analog_pins.flow1));
-        let fm_o = c(adc1.read(&mut analog_pins.flow2));
+        let fm_f = s(adc1.read(&mut analog_pins.flow1));
+        let fm_o = s(adc1.read(&mut analog_pins.flow2));
 
-        let load1 = c(adc1.read(&mut analog_pins.load_cell1));
-        let load2 = c(adc1.read(&mut analog_pins.load_cell2));
+        // TODO: Do conversions into newtons.
+        let load1 = l(adc1.read(&mut analog_pins.load_cell1));
+        let load2 = l(adc1.read(&mut analog_pins.load_cell2));
 
-        let pt1_f = c(adc1.read(&mut analog_pins.pressure1));
-        let pt2_f = c(adc1.read(&mut analog_pins.pressure2));
-        let pt1_e = c(adc1.read(&mut analog_pins.pressure3));
-        let pt2_e = c(adc1.read(&mut analog_pins.pressure4));
-        let pt1_o = c(adc1.read(&mut analog_pins.pressure5));
-        let pt2_o = c(adc1.read(&mut analog_pins.pressure6));
-        let pt4_o = c(adc1.read(&mut analog_pins.pressure7));
-        let pt1_p = c(adc1.read(&mut analog_pins.pressure8));
-        let pt2_p = c(adc1.read(&mut analog_pins.pressure9));
+        let pt1_f = s(adc1.read(&mut analog_pins.pressure1));
+        let pt2_f = s(adc1.read(&mut analog_pins.pressure2));
+        let pt1_e = s(adc1.read(&mut analog_pins.pressure3));
+        let pt2_e = s(adc1.read(&mut analog_pins.pressure4));
+        let pt1_o = s(adc1.read(&mut analog_pins.pressure5));
+        let pt2_o = s(adc1.read(&mut analog_pins.pressure6));
+        let pt4_o = s(adc1.read(&mut analog_pins.pressure7));
+        let pt1_p = s(adc1.read(&mut analog_pins.pressure8));
+        let pt2_p = s(adc1.read(&mut analog_pins.pressure9));
 
         sensor_data.lock(|sensor_data| {
             sensor_data.fm_f = fm_f;

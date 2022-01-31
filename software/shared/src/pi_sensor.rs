@@ -30,7 +30,11 @@ const _: () = assert!(<SensorReading as postcard::MaxSize>::POSTCARD_MAX_SIZE ==
 
 impl SensorReading {
     pub const fn new(data: u16) -> Self {
-        SensorReading(data ^ (1 << 15)) // lop off the MSB
+        if data & (1 << 15) != 0 {
+            Self::new_error(SensorError::OutOfRange)
+        } else {
+            Self(data ^ (1 << 15)) // lop off the MSB
+        }
     }
 
     pub const fn new_error(error: SensorError) -> Self {
@@ -53,37 +57,48 @@ impl Default for SensorReading {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Deserialize, Serialize, postcard::MaxSize)]
-pub struct Temperature(u16);
+
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default, Deserialize, Serialize, postcard::MaxSize)]
+pub struct Temperature(SensorReading);
 
 const _: () = assert!(<Temperature as postcard::MaxSize>::POSTCARD_MAX_SIZE == 2);
 
 impl Temperature {
     /// Receives a temperature with a LSB that represents 0.25 degrees C.
     pub const fn new(temp_quarter_degree: i16) -> Self {
-        Temperature((temp_quarter_degree as u16 >> 1) ^ (1 << 15)) // lop off the MSB
+        Temperature(SensorReading::new(temp_quarter_degree as u16 >> 1))
     }
 
     pub const fn new_error(error: SensorError) -> Self {
-        Temperature(error as u16 | (1 << 15))
+        Temperature(SensorReading::new_error(error))
     }
 
     /// Returns the temperature with a resolution of 0.5 degrees C.
     pub fn unpack(self) -> Result<f32, SensorError> {
-        if self.0 & (1 << 15) == 0 {
-            // The LSB has been lopped off.
-            let temp_quarter_degree = (self.0 << 1) as i16;
-            Ok(temp_quarter_degree as f32 / 2.0)
-        } else {
-            assert!(self.0 as u8 <= 1);
-            Err(unsafe { mem::transmute(self.0 as u8)})
-        }
+        self.0.unpack().map(|temp_quarter_degree| {
+            (temp_quarter_degree << 1) as i16 as f32 / 2.0
+        })
     }
 }
 
-impl Default for Temperature {
-    fn default() -> Self {
-        Self::new_error(SensorError::NoData)
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default, Deserialize, Serialize, postcard::MaxSize)]
+pub struct Force(SensorReading);
+
+const _: () = assert!(<Force as postcard::MaxSize>::POSTCARD_MAX_SIZE == 2);
+
+impl Force {
+    pub const fn new(newtons: u16) -> Self {
+        Self(SensorReading::new(newtons))
+    }
+
+    pub const fn new_error(error: SensorError) -> Self {
+        Self(SensorReading::new_error(error))
+    }
+
+    /// Return the force in Newtons.
+    pub fn unpack(self) -> Result<u16, SensorError> {
+        self.0.unpack()
     }
 }
 
@@ -91,12 +106,9 @@ impl Default for Temperature {
 pub enum SensorError {
     Unknown = 0,
     NoData = 1,
+    OutOfRange = 2,
 }
 
-/// On sensor board, call the [`AllSensors::into_iter`] function to get an iterator over the
-/// the frames to send to the Pi.
-/// 
-/// On the Pi, call [`AllSensors::from_bytes`] to turn the raw data into [`AllSensors`].
 #[derive(Clone, Default, Deserialize, Serialize, postcard::MaxSize)]
 pub struct AllSensors {
     // Thermocouples 
@@ -114,8 +126,8 @@ pub struct AllSensors {
     pub fm_o: SensorReading,
 
     // Load Cells
-    pub load1: SensorReading,
-    pub load2: SensorReading,
+    pub load1: Force,
+    pub load2: Force,
 
     // Pressure Transducers
     pub pt1_f: SensorReading,
