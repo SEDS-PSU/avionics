@@ -1,6 +1,6 @@
 #![no_std]
 
-use core::slice;
+use core::{slice, fmt};
 
 use embedded_hal::blocking::i2c;
 
@@ -29,6 +29,15 @@ pub enum FilterCoefficient {
 pub enum Error<E> {
     I2C(E),
     InvalidDevice,
+}
+
+impl<E> fmt::Debug for Error<E> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::I2C(_) => write!(f, "I2C error"),
+            Self::InvalidDevice => write!(f, "InvalidDevice"),
+        }
+    }
 }
 
 impl<E> From<E> for Error<E> {
@@ -75,14 +84,14 @@ impl<E, I2C: i2c::WriteRead<u8, Error = E> + i2c::Write<u8, Error = E>, const AD
     }
 
     /// Read this cold-junction compoensated and error-corrected thermocouple temperature
-    /// in degrees Celsius.
-    pub fn read_junction(&mut self) -> Result<i32, Error<E>> {
+    /// as a multiple of 0.25 degrees Celsius.
+    pub fn read_junction(&mut self) -> Result<i16, Error<E>> {
         // Read the temperature.
         let mut buf = [0; 2];
         self.i2c
             .write_read(ADDRESS, &[reg::JUNCTION_DELTA], &mut buf)?;
 
-        let temp = i16::from_le_bytes(buf) as i32 * 4; // each LSB is 4 degrees C before multiplying by 4
+        let temp_quarter_degrees = i16::from_le_bytes(buf); // each LSB is 0.25 degrees C
 
         // Reset the update flag.
         let mut status = 0;
@@ -91,7 +100,7 @@ impl<E, I2C: i2c::WriteRead<u8, Error = E> + i2c::Write<u8, Error = E>, const AD
         status &= 0b1011_1111; // clear the update flag
         self.i2c.write(ADDRESS, &[reg::STATUS, status])?;
 
-        Ok(temp)
+        Ok(temp_quarter_degrees)
     }
 
     /// Check if the junction temperature has been updated since the last read.

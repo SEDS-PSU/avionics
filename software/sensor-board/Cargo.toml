@@ -20,7 +20,10 @@ nb = "1.0"
 shared = { path = "../shared" }
 heapless = "0.7.9"
 embedded-hal = "0.2.6"
+embedded-dma = "0.1.2"
 postcard = { git = "https://github.com/lachlansneff/postcard.git", branch = "max-serialization-size" }
+mcp96x = { path = "../mcp96x" }
+shared-bus = { version = "0.2.2", features = ["cortex-m"] }
 
 [dependencies.stm32f1xx-hal]
 version = "0.8.0"
