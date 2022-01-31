@@ -9,8 +9,10 @@ use stm32f1xx_hal as _; // memory layout
 
 mod util;
 
-type Instant = fugit::Instant<u32, 1, 72_000_000>;
-type Duration = fugit::Duration<u32, 1, 72_000_000>;
+const FREQUENCY: u32 = 36_000_000; // Hz
+
+type Instant = fugit::Instant<u32, 1, FREQUENCY>;
+type Duration = fugit::Duration<u32, 1, FREQUENCY>;
 
 const COMMAND_TIMEOUT: Duration = Duration::millis(5);
 
@@ -19,13 +21,18 @@ const RASPI_ID: bxcan::StandardId = if let Some(id) = bxcan::StandardId::new(sha
 } else {
     panic!("RASPI_ID is not a valid standard CAN ID");
 };
+const OUTPUT_BOARD_ID: bxcan::StandardId = if let Some(id) = bxcan::StandardId::new(shared::OUTPUT_BOARD_ID) {
+    id
+} else {
+    panic!("OUTPUT_ID is not a valid standard CAN ID");
+};
 
 #[rtic::app(device = stm32f1xx_hal::pac, dispatchers = [EXTI0])]
 mod app {
     use core::mem;
 
-    use crate::Duration;
-    use bxcan::{filter::Mask32, Frame, Interrupts, Rx, Tx};
+    use crate::{Duration, OUTPUT_BOARD_ID, FREQUENCY};
+    use bxcan::{filter::Mask32, Frame, Interrupts, Rx, Tx, StandardId};
     use dwt_systick_monotonic::DwtSystick;
     use heapless::{spsc::Queue, Deque};
     use shared::{pi_output, PackedValves, ThreeWay, TwoWay, Valves};
@@ -39,12 +46,13 @@ mod app {
         pac::{Interrupt, CAN1},
         prelude::*,
     };
+    use postcard::MaxSize;
 
     use crate::{Instant, COMMAND_TIMEOUT, RASPI_ID};
 
     // The monotonic scheduler type
     #[monotonic(binds = SysTick, default = true)]
-    type Mono = DwtSystick<72_000_000 /* Hz */>;
+    type Mono = DwtSystick<FREQUENCY /* Hz */>;
 
     pub enum CommandState {
         Loading,
@@ -118,7 +126,7 @@ mod app {
             .cfgr
             .use_hse(25.mhz())
             // do we need other stuff here?
-            .sysclk(36.mhz())
+            .sysclk(FREQUENCY.hz())
             .pclk1(18.mhz())
             .freeze(&mut flash.acr);
 
@@ -172,7 +180,8 @@ mod app {
             .set_bit_timing(0x001e0000)
             .leave_disabled();
 
-        can.modify_filters().enable_bank(0, Mask32::accept_all());
+        // Only recieve frames intended for the output board.
+        can.modify_filters().enable_bank(0, Mask32::frames_with_std_id(OUTPUT_BOARD_ID, StandardId::MAX));
 
         // Sync to the bus and start normal operation.
         can.enable_interrupts(
@@ -385,13 +394,115 @@ mod app {
             error: None, // for now
         };
 
-        let frame = bxcan::Frame::new_data(RASPI_ID, status.as_bytes());
+        let mut data = [0; pi_output::Status::POSTCARD_MAX_SIZE];
+
+        if let Err(_) = postcard::to_slice(&status, &mut data) {
+            defmt::error!("failed to serialize `pi_output::Status`");
+            return;
+        }
+
+        let frame = bxcan::Frame::new_data(RASPI_ID, data);
 
         let mut tx_queue = cx.shared.can_tx_queue;
 
         tx_queue.lock(|tx_queue| {
             enqueue_frame(tx_queue, frame);
         });
+    }
+
+    enum CanRxError {
+        Postcard(postcard::Error),
+        WrongState,
+    }
+
+    impl From<postcard::Error> for CanRxError {
+        fn from(e: postcard::Error) -> Self {
+            CanRxError::Postcard(e)
+        }
+    }
+
+    fn process_can_rx(
+        data: &[u8],
+        command_state: &mut CommandState,
+        command_list: &mut Deque<pi_output::Command, 256>,
+        commands_start: &mut Option<Instant>,
+        commands_count: &mut u8,
+    ) -> Result<(), CanRxError> {
+        if let Some(timeout_begin) = *commands_start {
+            if monotonics::now() - timeout_begin < COMMAND_TIMEOUT
+                && *commands_count > 0
+            {
+                if let CommandState::Loading = command_state {
+                    // We're in the wrong state.
+                    defmt::error!(
+                        "attempted to load commands while executing commands"
+                    );
+                    return Err(CanRxError::WrongState);
+                }
+
+                assert!(*commands_count > 0);
+
+                let command = postcard::from_bytes(data)?;
+
+                // This can't overflow, since the length is a max of 255.
+                command_list.push_back(command).unwrap();
+                *commands_count -= 1;
+
+                return Ok(())
+            } else {
+                // We timed out, so let's assume this frame is a request.
+                *commands_start = None;
+            }
+        }
+
+        // Assume this frame is a request.
+        let request = postcard::from_bytes(data)?;
+
+        match request {
+            pi_output::Request::GetStatus => {
+                send_status::spawn().expect("failed to spawn the `send_status` task")
+            }
+            pi_output::Request::SetValvesImmediately(new_states) => {
+                defmt::info!("setting valve states");
+
+                set_valves::spawn(new_states)
+                    .expect("failed to spawn the `set_valves` task");
+
+                // Kill the currently executing list of commands.
+                if let CommandState::Executing {
+                    handle: Some(handle),
+                    ..
+                } = mem::replace(command_state, CommandState::Loading)
+                {
+                    defmt::info!("killing the currently executing command task");
+                    let _ = handle.cancel();
+                }
+                command_list.clear();
+            }
+            pi_output::Request::BeginSequence { length } => {
+                defmt::info!("beginning a sequence of {} commands", length);
+                *commands_start = Some(monotonics::now());
+                *commands_count = length;
+
+                // Kill the currently executing list of commands.
+                if let CommandState::Executing {
+                    handle: Some(handle),
+                    ..
+                } = mem::replace(command_state, CommandState::Loading)
+                {
+                    defmt::info!("killing the currently executing command task");
+                    let _ = handle.cancel();
+                }
+                command_list.clear();
+            }
+            pi_output::Request::Reset => {
+                defmt::info!("resetting");
+                defmt::flush();
+                cortex_m::peripheral::SCB::sys_reset()
+            }
+        }
+
+        Ok(())
     }
 
     #[task(binds = USB_LP_CAN_RX0,
@@ -423,94 +534,22 @@ mod app {
                         continue; // go to next loop iteration
                     };
 
-                    if let Some(timeout_begin) = *commands_start {
-                        if monotonics::now() - timeout_begin < COMMAND_TIMEOUT
-                            && *commands_count > 0
-                        {
-                            if let CommandState::Loading = command_state {
-                                // We're in the wrong state.
-                                defmt::error!(
-                                    "attempted to load commands while executing commands"
-                                );
-                                continue;
-                            }
-
-                            assert!(*commands_count > 0);
-
-                            let data = if let Ok(data) = data.try_into() {
-                                data
-                            } else {
-                                defmt::error!("frame data is not 4 bytes");
-                                continue;
-                            };
-
-                            let command = pi_output::Command::from_bytes(data);
-                            // This can't overflow, since the length is a max of 255.
-                            command_list.push_back(command).unwrap();
-                            *commands_count -= 1;
-
-                            continue;
-                        } else {
-                            // We timed out, so let's assume this frame is a request.
-                            *commands_start = None;
+                    match process_can_rx(
+                        data,
+                        command_state,
+                        command_list,
+                        commands_start,
+                        commands_count,
+                    ) {
+                        Ok(_) => (),
+                        Err(CanRxError::Postcard(_)) => {
+                            defmt::error!("failed to deserialize frame");
+                        }
+                        Err(CanRxError::WrongState) => {
+                            defmt::error!("received a command in the wrong state");
                         }
                     }
-
-                    // Assume this frame is a request.
-
-                    // Make sure the frame has a size of 4.
-                    let data = if let Ok(data) = data.try_into() {
-                        data
-                    } else {
-                        defmt::error!("frame data is not 4 bytes");
-                        continue;
-                    };
-
-                    let request = pi_output::Request::from_bytes(data);
-
-                    match request {
-                        pi_output::Request::GetStatus => {
-                            send_status::spawn().expect("failed to spawn the `send_status` task")
-                        }
-                        pi_output::Request::SetValvesImmediately(new_states) => {
-                            defmt::info!("setting valve states");
-
-                            set_valves::spawn(new_states)
-                                .expect("failed to spawn the `set_valves` task");
-
-                            // Kill the currently executing list of commands.
-                            if let CommandState::Executing {
-                                handle: Some(handle),
-                                ..
-                            } = mem::replace(command_state, CommandState::Loading)
-                            {
-                                defmt::info!("killing the currently executing command task");
-                                let _ = handle.cancel();
-                            }
-                            command_list.clear();
-                        }
-                        pi_output::Request::BeginSequence { length } => {
-                            defmt::info!("beginning a sequence of {} commands", length);
-                            *commands_start = Some(monotonics::now());
-                            *commands_count = length;
-
-                            // Kill the currently executing list of commands.
-                            if let CommandState::Executing {
-                                handle: Some(handle),
-                                ..
-                            } = mem::replace(command_state, CommandState::Loading)
-                            {
-                                defmt::info!("killing the currently executing command task");
-                                let _ = handle.cancel();
-                            }
-                            command_list.clear();
-                        }
-                        pi_output::Request::Reset => {
-                            defmt::info!("resetting");
-                            defmt::flush();
-                            cortex_m::peripheral::SCB::sys_reset()
-                        }
-                    }
+                    
                 }
                 Err(nb::Error::WouldBlock) => break,
                 Err(nb::Error::Other(_)) => {} // Ignore overrun errors.

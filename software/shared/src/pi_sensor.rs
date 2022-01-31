@@ -2,8 +2,9 @@
 
 use core::mem;
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-#[repr(u8)]
+use serde::{Serialize, Deserialize};
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Deserialize, Serialize, postcard::MaxSize)]
 pub enum Request {
     /// The sensor board should respond with 6 frames.
     /// The first contains the general status of the sensor board.
@@ -13,27 +14,19 @@ pub enum Request {
     Reset,
 }
 
-const _: () = assert!(mem::size_of::<Request>() == 1);
+const _: () = assert!(<Request as postcard::MaxSize>::POSTCARD_MAX_SIZE == 1);
 
-impl Request {
-    pub fn as_bytes(self) -> [u8; 1] {
-        unsafe { mem::transmute(self) }
-    }
-
-    pub fn from_bytes(bytes: [u8; 1]) -> Self {
-        unsafe { mem::transmute(bytes) }
-    }
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-#[repr(C)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Deserialize, Serialize, postcard::MaxSize)]
 pub struct ResponseHeader {
     pub doing_good: bool,
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-#[repr(transparent)]
+const _: () = assert!(<ResponseHeader as postcard::MaxSize>::POSTCARD_MAX_SIZE == 1);
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Deserialize, Serialize, postcard::MaxSize)]
 pub struct SensorReading(u16);
+
+const _: () = assert!(<SensorReading as postcard::MaxSize>::POSTCARD_MAX_SIZE == 2);
 
 impl SensorReading {
     pub const fn new(data: u16) -> Self {
@@ -53,32 +46,27 @@ impl SensorReading {
     }
 }
 
-#[repr(u8)]
+impl Default for SensorReading {
+    fn default() -> Self {
+        Self::new_error(SensorError::NoData)
+    }
+}
+
 pub enum SensorError {
     Unknown,
+    NoData,
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-#[repr(C)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default, Deserialize, Serialize, postcard::MaxSize)]
 pub struct SensorReadings(pub SensorReading, pub SensorReading, pub SensorReading, pub SensorReading);
 
-const _: () = assert!(mem::size_of::<SensorReadings>() == 8);
-
-impl SensorReadings {
-    pub fn as_bytes(self) -> [u8; 8] {
-        unsafe { mem::transmute(self) }
-    }
-
-    pub fn from_bytes(bytes: [u8; 8]) -> Self {
-        unsafe { mem::transmute(bytes) }
-    }
-}
+const _: () = assert!(<SensorReadings as postcard::MaxSize>::POSTCARD_MAX_SIZE == 8);
 
 /// On sensor board, call the [`AllSensors::into_iter`] function to get an iterator over the
 /// the frames to send to the Pi.
 /// 
 /// On the Pi, call [`AllSensors::from_bytes`] to turn the raw data into [`AllSensors`].
-#[repr(C)]
+#[derive(Clone, Default, Deserialize, Serialize, postcard::MaxSize)]
 pub struct AllSensors {
     // Thermocouples 
     pub tc1_e: SensorReading,
@@ -110,20 +98,4 @@ pub struct AllSensors {
     pub pt2_p: SensorReading,
 }
 
-const _: () = assert!(mem::size_of::<AllSensors>() == 40);
-
-impl AllSensors {
-    pub fn from_bytes(bytes: &[u8; 40]) -> &AllSensors {
-        unsafe { &*(bytes as *const _ as *const _) }
-    }
-
-    pub fn into_iter(&self) -> [SensorReadings; 5] {
-        [
-            SensorReadings(self.tc1_e, self.tc2_e, self.tc1_f, self.tc2_f),
-            SensorReadings(self.tc1_o, self.tc5_o, self.therm7, self.fm_f),
-            SensorReadings(self.fm_o, self.load1, self.load2, self.pt1_f),
-            SensorReadings(self.pt2_f, self.pt1_e, self.pt2_e, self.pt1_o),
-            SensorReadings(self.pt2_o, self.pt4_o, self.pt1_p, self.pt2_p),
-        ]
-    }
-}
+const _: () = assert!(<AllSensors as postcard::MaxSize>::POSTCARD_MAX_SIZE == 40);

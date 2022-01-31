@@ -1,5 +1,7 @@
 use core::mem;
 
+use serde::{Serialize, Deserialize};
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Valves {
     pub fc_fp: TwoWay,
@@ -56,9 +58,11 @@ impl From<PackedValves> for Valves {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Deserialize, Serialize, postcard::MaxSize)]
 #[repr(transparent)]
 pub struct PackedValves(u16);
+
+const _: () = assert!(<PackedValves as postcard::MaxSize>::POSTCARD_MAX_SIZE == 2);
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum TwoWay {

@@ -1,11 +1,12 @@
 //! Shared definitions and code for Pi <-> Output Board communication.
 
-use core::{num::NonZeroU16, mem};
+use core::num::NonZeroU16;
+
+use serde::{Serialize, Deserialize};
 
 use crate::PackedValves;
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-#[repr(u8)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Deserialize, Serialize, postcard::MaxSize)]
 pub enum Request {
     /// The output board should respond with status.
     GetStatus,
@@ -19,28 +20,17 @@ pub enum Request {
     Reset,
 }
 
-const _: () = assert!(mem::size_of::<Request>() == 4);
+const _: () = assert!(<Request as postcard::MaxSize>::POSTCARD_MAX_SIZE == 3);
 
-impl Request {
-    pub fn as_bytes(self) -> [u8; 4] {
-        unsafe { mem::transmute(self) }
-    }
-
-    pub fn from_bytes(bytes: [u8; 4]) -> Self {
-        unsafe { mem::transmute(bytes) }
-    }
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Deserialize, Serialize, postcard::MaxSize)]
 pub enum Wait {
     WaitMs(NonZeroU16),
     Forever,
 }
 
-const _: () = assert!(mem::size_of::<Wait>() == 2);
+const _: () = assert!(<Wait as postcard::MaxSize>::POSTCARD_MAX_SIZE == 3);
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-#[repr(u8)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Deserialize, Serialize, postcard::MaxSize)]
 pub enum Command {
     SetValves {
         states: PackedValves,
@@ -53,41 +43,21 @@ pub enum Command {
     }
 }
 
-const _: () = assert!(mem::size_of::<Command>() == 6);
+const _: () = assert!(<Command as postcard::MaxSize>::POSTCARD_MAX_SIZE == 6);
 
-impl Command {
-    pub fn as_bytes(self) -> [u8; 6] {
-        unsafe { mem::transmute(self) }
-    }
-
-    pub fn from_bytes(bytes: [u8; 6]) -> Self {
-        unsafe { mem::transmute(bytes) }
-    }
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-#[repr(C)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Deserialize, Serialize, postcard::MaxSize)]
 pub struct Status {
     pub states: Option<PackedValves>,
     pub state: State,
     pub error: Option<OutputBoardError>,
 }
 
-const _: () = assert!(mem::size_of::<Status>() == 6);
+const _: () = assert!(<Status as postcard::MaxSize>::POSTCARD_MAX_SIZE == 6);
 
-impl Status {
-    pub fn as_bytes(self) -> [u8; 6] {
-        unsafe { mem::transmute(self) }
-    }
-
-    pub fn from_bytes(bytes: [u8; 6]) -> Self {
-        unsafe { mem::transmute(bytes) }
-    }
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-#[repr(transparent)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Deserialize, Serialize, postcard::MaxSize)]
 pub struct State(u8);
+
+const _: () = assert!(<State as postcard::MaxSize>::POSTCARD_MAX_SIZE == 1);
 
 impl State {
     pub const fn new() -> Self {
@@ -111,8 +81,9 @@ impl State {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-#[repr(u8)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Deserialize, Serialize, postcard::MaxSize)]
 pub enum OutputBoardError {
     Unknown,
 }
+
+const _: () = assert!(<OutputBoardError as postcard::MaxSize>::POSTCARD_MAX_SIZE == 1);
