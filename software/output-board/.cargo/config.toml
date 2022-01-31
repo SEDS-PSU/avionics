@@ -22,3 +22,6 @@ target = "thumbv7m-none-eabi"    # Cortex-M3
 [alias]
 rb = "run --bin"
 rrb = "run --release --bin"
+
+[env]
+DEFMT_LOG = "info"
