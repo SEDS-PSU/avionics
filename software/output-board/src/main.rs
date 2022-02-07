@@ -112,6 +112,8 @@ mod app {
         actuation_pins: ActuationPins,
         /// This is walled-off by the arming mosfet.
         igniter_pin: PB10<Output<PushPull>>,
+
+        valve_1_toggle: bool,
     }
 
     #[init(local = [command_list: Deque<pi_output::Command, 256> = Deque::new()])]
@@ -198,6 +200,8 @@ mod app {
 
         let mono = DwtSystick::new(&mut dcb, dwt, systick, clocks.sysclk().0);
 
+        oscillate_valve_1::spawn().unwrap();
+
         // Setup the monotonic timer
         (
             Shared {
@@ -217,6 +221,7 @@ mod app {
                 commands_count: 0,
                 actuation_pins,
                 igniter_pin,
+                valve_1_toggle: false,
             },
             init::Monotonics(mono),
         )
@@ -277,6 +282,24 @@ mod app {
         let igniter_pin = cx.local.igniter_pin;
 
         igniter_pin.set_high();
+    }
+
+    #[task(local = [valve_1_toggle])]
+    fn oscillate_valve_1(cx: oscillate_valve_1::Context) {
+        oscillate_valve_1::spawn_after(Duration::secs(1)).unwrap();
+
+        let toggle = cx.local.valve_1_toggle;
+        *toggle = !*toggle;
+
+        let state = Valves {
+            fc_fp: match *toggle {
+                true => TwoWay::Open,
+                false => TwoWay::Closed,
+            },
+            ..Default::default()
+        }.into();
+
+        set_valves::spawn(state).unwrap();
     }
 
     #[task(shared = [valve_states], local = [actuation_pins])]

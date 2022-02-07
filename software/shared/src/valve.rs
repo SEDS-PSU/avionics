@@ -16,6 +16,23 @@ pub struct Valves {
     pub fc2_o: TwoWay,
 }
 
+impl Default for Valves {
+    fn default() -> Self {
+        Valves {
+            fc_fp: TwoWay::Closed,
+            fc_op: TwoWay::Closed,
+            fo_p: TwoWay::Closed,
+            pv_f: ThreeWay::NitrogenPathway,
+            fo_fp: TwoWay::Closed,
+            fc_p: TwoWay::Closed,
+            pv_o: ThreeWay::NitrogenPathway,
+            fo_op: TwoWay::Closed,
+            fc1_o: TwoWay::Closed,
+            fc2_o: TwoWay::Closed,
+        }
+    }
+}
+
 impl From<Valves> for PackedValves {
     fn from(v: Valves) -> Self {
         PackedValves(

@@ -9,7 +9,7 @@ use stm32f1xx_hal as _; // memory layout
 
 mod util;
 
-const FREQUENCY: u32 = 36_000_000; // Hz
+const FREQUENCY: u32 = 24_000_000; // Hz
 
 type Duration = fugit::Duration<u32, 1, FREQUENCY>;
 
@@ -107,10 +107,10 @@ mod app {
 
         let clocks = rcc
             .cfgr
-            .use_hse(25.mhz())
+            // .use_hse(25.mhz())
             // do we need other stuff here?
             .sysclk(FREQUENCY.hz())
-            .pclk1(18.mhz())
+            .pclk1(16.mhz())
             .freeze(&mut flash.acr);
 
         // Set up CAN bus.
@@ -181,7 +181,7 @@ mod app {
         // APB1 (PCLK1): 16MHz, Bit rate: 1000kBit/s, Sample Point 87.5%
         // Value was calculated with http://www.bittiming.can-wiki.info/
         let mut can = bxcan::Can::builder(can)
-            .set_bit_timing(0x001e0000)
+            .set_bit_timing(0x001c0000)
             .leave_disabled();
 
         // Only recieve frames intended for the sensor board.

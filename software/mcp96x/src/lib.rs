@@ -26,21 +26,22 @@ pub enum FilterCoefficient {
     Maximum = 7,
 }
 
-pub enum Error<E> {
+#[derive(Debug)]
+pub enum Error<E: fmt::Debug> {
     I2C(E),
     InvalidDevice,
 }
 
-impl<E> fmt::Debug for Error<E> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::I2C(_) => write!(f, "I2C error"),
-            Self::InvalidDevice => write!(f, "InvalidDevice"),
-        }
-    }
-}
+// impl<E: fmt::Debug> fmt::Debug for Error<E> {
+//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+//         match self {
+//             Self::I2C(_) => write!(f, "I2C error"),
+//             Self::InvalidDevice => write!(f, "InvalidDevice"),
+//         }
+//     }
+// }
 
-impl<E> From<E> for Error<E> {
+impl<E: fmt::Debug> From<E> for Error<E> {
     fn from(error: E) -> Self {
         Error::I2C(error)
     }
@@ -61,7 +62,7 @@ pub struct MCP96X<I2C: i2c::WriteRead<u8> + i2c::Write<u8>, const ADDRESS: u8> {
     i2c: I2C,
 }
 
-impl<E, I2C: i2c::WriteRead<u8, Error = E> + i2c::Write<u8, Error = E>, const ADDRESS: u8>
+impl<E: fmt::Debug, I2C: i2c::WriteRead<u8, Error = E> + i2c::Write<u8, Error = E>, const ADDRESS: u8>
     MCP96X<I2C, ADDRESS>
 {
     pub fn new(
@@ -73,7 +74,7 @@ impl<E, I2C: i2c::WriteRead<u8, Error = E> + i2c::Write<u8, Error = E>, const AD
 
         let (id, _) = this.device_id_revision()?;
 
-        if id != 0b01000000 {
+        if !(id == 0b01000000 || id == 0b01000001) {
             return Err(Error::InvalidDevice);
         }
 
