@@ -113,7 +113,7 @@ mod app {
         /// This is walled-off by the arming mosfet.
         igniter_pin: PB10<Output<PushPull>>,
 
-        valve_1_toggle: bool,
+        valve_toggle: bool,
     }
 
     #[init(local = [command_list: Deque<pi_output::Command, 256> = Deque::new()])]
@@ -200,7 +200,8 @@ mod app {
 
         let mono = DwtSystick::new(&mut dcb, dwt, systick, clocks.sysclk().0);
 
-        oscillate_valve_1::spawn().unwrap();
+        // oscillate_valves::spawn().unwrap();                  //Test Valves
+        // ignite::spawn_after(Duration::secs(5)).unwrap();     //Test Igniter
 
         // Setup the monotonic timer
         (
@@ -221,7 +222,7 @@ mod app {
                 commands_count: 0,
                 actuation_pins,
                 igniter_pin,
-                valve_1_toggle: false,
+                valve_toggle: false,
             },
             init::Monotonics(mono),
         )
@@ -284,22 +285,42 @@ mod app {
         igniter_pin.set_high();
     }
 
-    #[task(local = [valve_1_toggle])]
-    fn oscillate_valve_1(cx: oscillate_valve_1::Context) {
-        oscillate_valve_1::spawn_after(Duration::secs(1)).unwrap();
 
-        let toggle = cx.local.valve_1_toggle;
+    /// This is used to test all of the valves
+    #[task(local = [valve_toggle], shared = [&arming_switch])]
+    fn oscillate_valves(cx: oscillate_valves::Context) {
+        oscillate_valves::spawn_after(Duration::secs(1)).unwrap();
+
+        let toggle = cx.local.valve_toggle;
         *toggle = !*toggle;
 
+        let two_way_state = match *toggle {
+            true => TwoWay::Open,
+            false => TwoWay::Closed,
+        };
+
+        let three_way_state = match *toggle {
+            true => ThreeWay::FuelOxidizer,
+            false => ThreeWay::NitrogenPathway,
+        };
+
         let state = Valves {
-            fc_fp: match *toggle {
-                true => TwoWay::Open,
-                false => TwoWay::Closed,
-            },
-            ..Default::default()
+            fc_fp: two_way_state,
+            fc_op: two_way_state,
+            fo_p: two_way_state,
+            pv_f: three_way_state,
+            fo_fp: two_way_state,
+            fc_p: two_way_state,
+            pv_o: three_way_state,
+            fo_op: two_way_state,
+            fc1_o: two_way_state,
+            fc2_o: two_way_state,
         }.into();
 
         set_valves::spawn(state).unwrap();
+
+
+        defmt::info!("Is Armed: {}",cx.shared.arming_switch.is_high());
     }
 
     #[task(shared = [valve_states], local = [actuation_pins])]
