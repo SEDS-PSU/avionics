@@ -67,14 +67,12 @@ mod app {
     }
 
     pub struct Thermocouples {
-        // These addresses are probably not associated correctly.
-
-        thermo1: MCP96X<I2c1Proxy, 0b110_0000>,
-        thermo2: MCP96X<I2c1Proxy, 0b110_0001>,
-        thermo3: MCP96X<I2c1Proxy, 0b110_0010>,
-        thermo4: MCP96X<I2c1Proxy, 0b110_0011>,
-        thermo5: MCP96X<I2c1Proxy, 0b110_0100>,
-        thermo6: MCP96X<I2c1Proxy, 0b110_0101>,
+        thermo1: MCP96X<I2c1Proxy, 0b1100_000_>,
+        thermo2: MCP96X<I2c1Proxy, 0b1100_001_>,
+        thermo3: MCP96X<I2c1Proxy, 0b1100_010_>,
+        thermo4: MCP96X<I2c1Proxy, 0b1100_011_>,
+        thermo5: MCP96X<I2c1Proxy, 0b1100_100_>,
+        thermo6: MCP96X<I2c1Proxy, 0b1100_101_>,
     }
 
     // Shared resources go here
@@ -143,8 +141,12 @@ mod app {
             flow1: gpioc.pc1.into_analog(&mut gpioc.crl),
             flow2: gpioc.pc2.into_analog(&mut gpioc.crl),
         };
-
+    
+        let mut dwt = cx.core.DWT;
+        
         // Set up the I2C bus.
+        dwt.enable_cycle_counter();
+
         let bus_manager: &'static _ = {
             let i2c_scl = gpiob.pb6.into_alternate_open_drain(&mut gpiob.crl);
             let i2c_sda = gpiob.pb7.into_alternate_open_drain(&mut gpiob.crl);
@@ -153,7 +155,7 @@ mod app {
                 cx.device.I2C1,
                 (i2c_scl, i2c_sda),
                 &mut afio.mapr,
-                100.khz(),
+                50.khz(),
                 clocks.clone(),
                 1000,
                 10,
@@ -197,7 +199,6 @@ mod app {
 
         // Set up monotonic scheduler.
         let mut dcb = cx.core.DCB;
-        let dwt = cx.core.DWT;
         let systick = cx.core.SYST;
 
         defmt::info!("syclk: {}", clocks.sysclk().0);
