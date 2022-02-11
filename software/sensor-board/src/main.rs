@@ -26,6 +26,8 @@ const SENSOR_BOARD_ID: bxcan::StandardId = if let Some(id) = bxcan::StandardId::
 
 #[rtic::app(device = stm32f1xx_hal::pac, dispatchers = [EXTI0])]
 mod app {
+    use core::fmt;
+
     use crate::{SENSOR_BOARD_ID, FREQUENCY, Duration};
     use bxcan::{filter::Mask32, Frame, Interrupts, Rx, Tx, StandardId};
     use dwt_systick_monotonic::DwtSystick;
@@ -67,12 +69,12 @@ mod app {
     }
 
     pub struct Thermocouples {
-        thermo1: MCP96X<I2c1Proxy, 0b1100_000_>,
-        thermo2: MCP96X<I2c1Proxy, 0b1100_001_>,
-        thermo3: MCP96X<I2c1Proxy, 0b1100_010_>,
-        thermo4: MCP96X<I2c1Proxy, 0b1100_011_>,
-        thermo5: MCP96X<I2c1Proxy, 0b1100_100_>,
-        thermo6: MCP96X<I2c1Proxy, 0b1100_101_>,
+        thermo1: Option<MCP96X<I2c1Proxy, 0b1100_000>>,
+        thermo2: Option<MCP96X<I2c1Proxy, 0b1100_001>>,
+        thermo3: Option<MCP96X<I2c1Proxy, 0b1100_010>>,
+        thermo4: Option<MCP96X<I2c1Proxy, 0b1100_011>>,
+        thermo5: Option<MCP96X<I2c1Proxy, 0b1100_100>>,
+        thermo6: Option<MCP96X<I2c1Proxy, 0b1100_101>>,
     }
 
     // Shared resources go here
@@ -166,13 +168,23 @@ mod app {
             shared_bus::new_atomic_check!(I2c1 = i2c1).unwrap()
         };
 
+        fn to_opt<T, E: fmt::Debug>(res: Result<T, E>, n: usize) -> Option<T> {
+            match res {
+                Ok(t) => Some(t),
+                Err(e) => {
+                    defmt::error!("failed to initialize thermocouple {}: {:?}", n, defmt::Debug2Format(&e));
+                    None
+                }
+            }
+        }
+
         let thermocouples = Thermocouples {
-            thermo1: MCP96X::new(bus_manager.acquire_i2c(), ThermocoupleType::K, FilterCoefficient::Maximum).expect("failed to initialize thermocouple 1"),
-            thermo2: MCP96X::new(bus_manager.acquire_i2c(), ThermocoupleType::K, FilterCoefficient::Maximum).expect("failed to initialize thermocouple 2"),
-            thermo3: MCP96X::new(bus_manager.acquire_i2c(), ThermocoupleType::K, FilterCoefficient::Maximum).expect("failed to initialize thermocouple 3"),
-            thermo4: MCP96X::new(bus_manager.acquire_i2c(), ThermocoupleType::K, FilterCoefficient::Maximum).expect("failed to initialize thermocouple 4"),
-            thermo5: MCP96X::new(bus_manager.acquire_i2c(), ThermocoupleType::K, FilterCoefficient::Maximum).expect("failed to initialize thermocouple 5"),
-            thermo6: MCP96X::new(bus_manager.acquire_i2c(), ThermocoupleType::K, FilterCoefficient::Maximum).expect("failed to initialize thermocouple 6"),
+            thermo1: to_opt(MCP96X::new(bus_manager.acquire_i2c(), ThermocoupleType::K, FilterCoefficient::Maximum), 1),
+            thermo2: to_opt(MCP96X::new(bus_manager.acquire_i2c(), ThermocoupleType::K, FilterCoefficient::Maximum), 2),
+            thermo3: to_opt(MCP96X::new(bus_manager.acquire_i2c(), ThermocoupleType::K, FilterCoefficient::Maximum), 3),
+            thermo4: to_opt(MCP96X::new(bus_manager.acquire_i2c(), ThermocoupleType::K, FilterCoefficient::Maximum), 4),
+            thermo5: to_opt(MCP96X::new(bus_manager.acquire_i2c(), ThermocoupleType::K, FilterCoefficient::Maximum), 5),
+            thermo6: to_opt(MCP96X::new(bus_manager.acquire_i2c(), ThermocoupleType::K, FilterCoefficient::Maximum), 6),
         };
 
         let can_rx_pin = gpioa.pa11.into_floating_input(&mut gpioa.crh);
@@ -302,27 +314,27 @@ mod app {
         let tc = cx.local.thermocouples;
         let mut sensor_data = cx.shared.sensor_data;
 
-        let c = |res| match res {
+        let c = |opt: Option<_>| opt.map(|res| match res {
             Ok(v) => Temperature::new(v),
             Err(_) => Temperature::new_error(SensorError::Unknown),
-        };
+        });
 
         // This is the source of truth for these sensor to pin mappings.
 
-        let t1 = c(tc.thermo1.read_junction());
-        let t2 = c(tc.thermo2.read_junction());
-        let t3 = c(tc.thermo3.read_junction());
-        let t4 = c(tc.thermo4.read_junction());
-        let t5 = c(tc.thermo5.read_junction());
-        let t6 = c(tc.thermo6.read_junction());
+        let t1 = c(tc.thermo1.map(|t1| t1.read_junction()));
+        let t2 = c(tc.thermo2.map(|t2| t2.read_junction()));
+        let t3 = c(tc.thermo3.map(|t3| t3.read_junction()));
+        let t4 = c(tc.thermo4.map(|t4| t4.read_junction()));
+        let t5 = c(tc.thermo5.map(|t5| t5.read_junction()));
+        let t6 = c(tc.thermo6.map(|t6| t6.read_junction()));
 
         sensor_data.lock(|s| {
-            s.tc1_e = t1;
-            s.tc2_e = t2;
-            s.tc1_f = t3;
-            s.tc2_f = t4;
-            s.tc1_o = t5;
-            s.tc5_o = t6;
+            s.tc1_e = t1.unwrap_or(Temperature::new_error(SensorError::NoData));
+            s.tc2_e = t2.unwrap_or(Temperature::new_error(SensorError::NoData));
+            s.tc1_f = t3.unwrap_or(Temperature::new_error(SensorError::NoData));
+            s.tc2_f = t4.unwrap_or(Temperature::new_error(SensorError::NoData));
+            s.tc1_o = t5.unwrap_or(Temperature::new_error(SensorError::NoData));
+            s.tc5_o = t6.unwrap_or(Temperature::new_error(SensorError::NoData));
         });
     }
 
