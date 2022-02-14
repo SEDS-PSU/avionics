@@ -218,6 +218,7 @@ mod app {
         let mono = DwtSystick::new(&mut dcb, dwt, systick, clocks.sysclk().0);
 
         sensor_poll::spawn().unwrap();
+        send_sensor_data::spawn_after(Duration::secs(2)).unwrap();
 
         // Setup the monotonic timer
         (
@@ -258,6 +259,7 @@ mod app {
 
     #[task(local = [adc1, analog_pins], shared = [sensor_data])]
     fn read_adc1(cx: read_adc1::Context) {
+        // defmt::info!("read_adc1");
         let read_adc1::LocalResources { adc1, analog_pins } = cx.local;
         let mut sensor_data = cx.shared.sensor_data;
 
@@ -311,6 +313,7 @@ mod app {
 
     #[task(local = [thermocouples], shared = [sensor_data])]
     fn read_thermocouples(cx: read_thermocouples::Context) {
+        // defmt::info!("read_thermocouples");
         let tc = cx.local.thermocouples;
         let mut sensor_data = cx.shared.sensor_data;
 
@@ -321,12 +324,12 @@ mod app {
 
         // This is the source of truth for these sensor to pin mappings.
 
-        let t1 = c(tc.thermo1.map(|t1| t1.read_junction()));
-        let t2 = c(tc.thermo2.map(|t2| t2.read_junction()));
-        let t3 = c(tc.thermo3.map(|t3| t3.read_junction()));
-        let t4 = c(tc.thermo4.map(|t4| t4.read_junction()));
-        let t5 = c(tc.thermo5.map(|t5| t5.read_junction()));
-        let t6 = c(tc.thermo6.map(|t6| t6.read_junction()));
+        let t1 = c(tc.thermo1.as_mut().map(|t1| t1.read_junction()));
+        let t2 = c(tc.thermo2.as_mut().map(|t2| t2.read_junction()));
+        let t3 = c(tc.thermo3.as_mut().map(|t3| t3.read_junction()));
+        let t4 = c(tc.thermo4.as_mut().map(|t4| t4.read_junction()));
+        let t5 = c(tc.thermo5.as_mut().map(|t5| t5.read_junction()));
+        let t6 = c(tc.thermo6.as_mut().map(|t6| t6.read_junction()));
 
         sensor_data.lock(|s| {
             s.tc1_e = t1.unwrap_or(Temperature::new_error(SensorError::NoData));
@@ -372,15 +375,19 @@ mod app {
     }
 
     fn enqueue_frame(queue: &mut Queue<Frame, 16>, frame: Frame) {
-        queue.enqueue(frame).unwrap();
+        // queue.enqueue(frame).expect("the frame queue is full");
         rtic::pend(Interrupt::USB_HP_CAN_TX);
     }
 
     #[task(shared = [can_tx_queue, sensor_data])]
     fn send_sensor_data(cx: send_sensor_data::Context) {
+        send_sensor_data::spawn_after(Duration::secs(2)).unwrap(); // temporary
+
         let send_sensor_data::SharedResources { mut can_tx_queue, mut sensor_data } = cx.shared;
 
         let sensor_data = sensor_data.lock(|data| data.clone());
+
+        defmt::info!("sensor_data: {:#?}", defmt::Debug2Format(&sensor_data));
 
         let header = pi_sensor::ResponseHeader {
             doing_good: true, // temporary

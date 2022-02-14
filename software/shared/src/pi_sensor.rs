@@ -1,6 +1,6 @@
 //! Shared definitions and code for Pi <-> Sensor Board communication.
 
-use core::mem;
+use core::{mem, fmt};
 
 use serde::{Serialize, Deserialize};
 
@@ -23,7 +23,14 @@ pub struct ResponseHeader {
 
 const _: () = assert!(<ResponseHeader as postcard::MaxSize>::POSTCARD_MAX_SIZE == 1);
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Deserialize, Serialize, postcard::MaxSize)]
+#[derive(Debug)]
+pub enum SensorError {
+    Unknown = 0,
+    NoData = 1,
+    OutOfRange = 2,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Deserialize, Serialize, postcard::MaxSize)]
 pub struct SensorReading(u16);
 
 const _: () = assert!(<SensorReading as postcard::MaxSize>::POSTCARD_MAX_SIZE == 2);
@@ -33,7 +40,7 @@ impl SensorReading {
         if data & (1 << 15) != 0 {
             Self::new_error(SensorError::OutOfRange)
         } else {
-            Self(data ^ (1 << 15)) // lop off the MSB
+            Self(data & !(1 << 15)) // lop off the MSB
         }
     }
 
@@ -41,12 +48,21 @@ impl SensorReading {
         SensorReading(error as u16 | (1 << 15))
     }
 
-    pub const fn unpack(self) -> Result<u16, SensorError> {
+    pub fn unpack(self) -> Result<u16, SensorError> {
         if self.0 & (1 << 15) == 0 {
             Ok(self.0)
         } else {
-            assert!(self.0 as u8 <= 1);
+            assert!(self.0 as u8 <= 2);
             Err(unsafe { mem::transmute(self.0 as u8)})
+        }
+    }
+}
+
+impl fmt::Debug for SensorReading {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self.unpack() {
+            Ok(value) => write!(f, "{}", value),
+            Err(error) => write!(f, "{:?}", error),
         }
     }
 }
@@ -102,14 +118,7 @@ impl Force {
     }
 }
 
-
-pub enum SensorError {
-    Unknown = 0,
-    NoData = 1,
-    OutOfRange = 2,
-}
-
-#[derive(Clone, Default, Deserialize, Serialize, postcard::MaxSize)]
+#[derive(Clone, Default, Deserialize, Serialize, postcard::MaxSize, Debug)]
 pub struct AllSensors {
     // Thermocouples 
     pub tc1_e: Temperature,

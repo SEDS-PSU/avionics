@@ -48,8 +48,8 @@ impl<E: fmt::Debug> From<E> for Error<E> {
 }
 
 mod reg {
-    // pub const HOT_JUNCTION: u8 = 0x00;
-    pub const JUNCTION_DELTA: u8 = 0x01;
+    pub const HOT_JUNCTION: u8 = 0x00;
+    // pub const JUNCTION_DELTA: u8 = 0x01;
     // pub const COLD_JUNCTION: u8 = 0x02;
     // pub const RAW_ADC_DATA: u8 = 0x03;
     pub const STATUS: u8 = 0x04;
@@ -90,7 +90,9 @@ impl<E: fmt::Debug, I2C: i2c::WriteRead<u8, Error = E> + i2c::Write<u8, Error = 
         // Read the temperature.
         let mut buf = [0; 2];
         self.i2c
-            .write_read(ADDRESS, &[reg::JUNCTION_DELTA], &mut buf)?;
+            .write_read(ADDRESS, &[reg::HOT_JUNCTION], &mut buf)?;
+
+        defmt::info!("junction read: {:#?}", buf);
 
         let temp_quarter_degrees = i16::from_le_bytes(buf); // each LSB is 0.25 degrees C
 
