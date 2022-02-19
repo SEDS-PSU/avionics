@@ -157,7 +157,7 @@ mod app {
                 cx.device.I2C1,
                 (i2c_scl, i2c_sda),
                 &mut afio.mapr,
-                50.khz(),
+                100.khz(),
                 clocks.clone(),
                 1000,
                 10,
@@ -251,7 +251,7 @@ mod app {
 
     #[task]
     fn sensor_poll(_cx: sensor_poll::Context) {
-        sensor_poll::spawn_after(Duration::millis(10)).unwrap();
+        sensor_poll::spawn_after(Duration::millis(1000)).unwrap();
 
         read_adc1::spawn().expect("failed to spawn task `poll_adc1`");
         read_thermocouples::spawn().expect("failed to spawn task `poll_thermocouples`");
@@ -324,12 +324,12 @@ mod app {
 
         // This is the source of truth for these sensor to pin mappings.
 
-        let t1 = c(tc.thermo1.as_mut().map(|t1| t1.read_junction()));
-        let t2 = c(tc.thermo2.as_mut().map(|t2| t2.read_junction()));
-        let t3 = c(tc.thermo3.as_mut().map(|t3| t3.read_junction()));
-        let t4 = c(tc.thermo4.as_mut().map(|t4| t4.read_junction()));
-        let t5 = c(tc.thermo5.as_mut().map(|t5| t5.read_junction()));
-        let t6 = c(tc.thermo6.as_mut().map(|t6| t6.read_junction()));
+        let t1 = c(tc.thermo1.as_mut().map(|t1| t1.read_raw_and_convert()));
+        let t2 = c(tc.thermo2.as_mut().map(|t2| t2.read_raw_and_convert()));
+        let t3 = c(tc.thermo3.as_mut().map(|t3| t3.read_raw_and_convert()));
+        let t4 = c(tc.thermo4.as_mut().map(|t4| t4.read_raw_and_convert()));
+        let t5 = c(tc.thermo5.as_mut().map(|t5| t5.read_raw_and_convert()));
+        let t6 = c(tc.thermo6.as_mut().map(|t6| t6.read_raw_and_convert()));
 
         sensor_data.lock(|s| {
             s.tc1_e = t1.unwrap_or(Temperature::new_error(SensorError::NoData));
