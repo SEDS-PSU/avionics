@@ -1,5 +1,7 @@
 #![no_std]
 
+mod k_type;
+
 use core::{slice, fmt};
 
 use embedded_hal::blocking::i2c;
@@ -27,6 +29,12 @@ pub enum FilterCoefficient {
 }
 
 #[derive(Debug)]
+pub struct Fault {
+    pub open_circuit: bool,
+    pub short_circuit: bool,
+}
+
+#[derive(Debug)]
 pub enum Error<E: fmt::Debug> {
     I2C(E),
     InvalidDevice,
@@ -48,10 +56,10 @@ impl<E: fmt::Debug> From<E> for Error<E> {
 }
 
 mod reg {
-    pub const HOT_JUNCTION: u8 = 0x00;
+    // pub const HOT_JUNCTION: u8 = 0x00;
     // pub const JUNCTION_DELTA: u8 = 0x01;
-    // pub const COLD_JUNCTION: u8 = 0x02;
-    // pub const RAW_ADC_DATA: u8 = 0x03;
+    pub const COLD_JUNCTION: u8 = 0x02;
+    pub const RAW_ADC_DATA: u8 = 0x03;
     pub const STATUS: u8 = 0x04;
     pub const SENSOR_CONFIG: u8 = 0x05;
     pub const DEVICE_CONFIG: u8 = 0x06;
@@ -72,6 +80,9 @@ impl<E: fmt::Debug, I2C: i2c::WriteRead<u8, Error = E> + i2c::Write<u8, Error = 
     ) -> Result<Self, Error<E>> {
         let mut this = Self { i2c };
 
+        // First read doesn't work for some reason?
+        let _ = this.device_id_revision();
+
         let (id, _) = this.device_id_revision()?;
 
         if !(id == 0b01000000 || id == 0b01000001) {
@@ -84,26 +95,67 @@ impl<E: fmt::Debug, I2C: i2c::WriteRead<u8, Error = E> + i2c::Write<u8, Error = 
         Ok(this)
     }
 
-    /// Read this cold-junction compoensated and error-corrected thermocouple temperature
-    /// as a multiple of 0.25 degrees Celsius.
-    pub fn read_junction(&mut self) -> Result<i16, Error<E>> {
-        // Read the temperature.
+    // /// Read this cold-junction compensated and error-corrected thermocouple temperature
+    // /// as a multiple of 0.25 degrees Celsius.
+    // pub fn read_junction(&mut self) -> Result<i16, Error<E>> {
+    //     // Read the temperature.
+    //     let mut buf = [0; 2];
+    //     self.i2c
+    //         .write_read(ADDRESS, &[reg::COLD_JUNCTION], &mut buf)?;
+
+    //     defmt::info!("junction read: {:#?}", buf);
+
+    //     // let temp_quarter_degrees = i16::from_be_bytes(buf); // each LSB is 0.25 degrees C
+    //     let temp_quarter_degrees = ((buf[0] as u16) << 8 | (buf[1] as u16)) as i16;
+
+    //     // Reset the update flag.
+    //     let mut status = 0;
+    //     self.i2c
+    //         .write_read(ADDRESS, &[reg::STATUS], slice::from_mut(&mut status))?;
+    //     status &= !(1 << 6); // clear the update flag
+    //     self.i2c.write(ADDRESS, &[reg::STATUS, status])?;
+
+    //     Ok(temp_quarter_degrees)
+    // }
+
+    /// Read this cold-junction compensated and error-corrected thermocouple temperature
+    /// in degrees Celsius.
+    pub fn read_raw_and_convert(&mut self) -> Result<i16, Error<E>> {
+        let mut buf = [0; 3];
+        self.i2c
+            .write_read(ADDRESS, &[reg::RAW_ADC_DATA], &mut buf)?;
+        
+        let raw = (buf[0] as u32) << 16 | (buf[1] as u32) << 8 | (buf[2] as u32);
+
+        // The thermocouples are flipped on the PCB.
+        let half_microvolts = -(if raw >> 23 != 0 {
+            raw | 0xFF_00_00_00
+        } else {
+            raw
+        } as i32);
+
+        let millivolts = fixed::FixedI32::from_num(half_microvolts) / 500;
+        let hot_junction = k_type::t(millivolts);
+
+        // compensate for reference temperature.
         let mut buf = [0; 2];
         self.i2c
-            .write_read(ADDRESS, &[reg::HOT_JUNCTION], &mut buf)?;
+            .write_read(ADDRESS, &[reg::COLD_JUNCTION], &mut buf)?;
+        let reference_temp = (((buf[0] as u16) << 8 | (buf[1] as u16)) as i16) / 16;
 
-        defmt::info!("junction read: {:#?}", buf);
+        let real_temp = hot_junction + reference_temp;
 
-        let temp_quarter_degrees = i16::from_le_bytes(buf); // each LSB is 0.25 degrees C
+        Ok(real_temp)
+    }
 
-        // Reset the update flag.
+    pub fn has_fault(&mut self) -> Result<Fault, Error<E>> {
         let mut status = 0;
-        self.i2c
-            .write_read(ADDRESS, &[reg::STATUS], slice::from_mut(&mut status))?;
-        status &= 0b1011_1111; // clear the update flag
-        self.i2c.write(ADDRESS, &[reg::STATUS, status])?;
+        self.i2c.write_read(ADDRESS, &[reg::STATUS], slice::from_mut(&mut status))?;
 
-        Ok(temp_quarter_degrees)
+        Ok(Fault {
+            open_circuit: status & (1 << 4) != 0,
+            short_circuit: status & (1 << 5) != 0,
+        })
     }
 
     /// Check if the junction temperature has been updated since the last read.
@@ -112,7 +164,7 @@ impl<E: fmt::Debug, I2C: i2c::WriteRead<u8, Error = E> + i2c::Write<u8, Error = 
         self.i2c
             .write_read(ADDRESS, &[reg::STATUS], slice::from_mut(&mut status))?;
 
-        Ok(status & 0b0100_0000 != 0)
+        Ok(status & (1 << 6) != 0)
     }
 
     pub fn configure_sensor(
@@ -130,6 +182,10 @@ impl<E: fmt::Debug, I2C: i2c::WriteRead<u8, Error = E> + i2c::Write<u8, Error = 
         self.device_id_revision().map(|(_, rev)| rev)
     }
 
+    // pub fn enabled(&mut self) -> Result<bool, Error<E>> {
+
+    // }
+
     fn device_id_revision(&mut self) -> Result<(u8, u8), Error<E>> {
         let mut buf = [0u8; 2];
         self.i2c.write_read(ADDRESS, &[reg::DEVICE_ID], &mut buf)?;
@@ -138,9 +194,14 @@ impl<E: fmt::Debug, I2C: i2c::WriteRead<u8, Error = E> + i2c::Write<u8, Error = 
     }
 
     fn set_default_device_config(&mut self) -> Result<(), Error<E>> {
-        let conf = 0b1_10_000_00; // 0.25 degree temperature resolution, 14-bit ADC resolution, 1 sample for burst mode, and normal power on.
+        let conf = 0b1_00_000_00; // 0.25 degree temperature resolution, 14-bit ADC resolution, 1 sample for burst mode, and normal power on.
 
         self.i2c.write(ADDRESS, &[reg::DEVICE_CONFIG, conf])?;
+
+        let mut out_conf = 0;
+        self.i2c.write_read(ADDRESS, &[reg::DEVICE_CONFIG], slice::from_mut(&mut out_conf))?;
+        assert_eq!(conf, out_conf);
+
         Ok(())
     }
 }

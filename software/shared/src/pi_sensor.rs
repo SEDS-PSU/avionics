@@ -40,7 +40,7 @@ impl SensorReading {
         if data & (1 << 15) != 0 {
             Self::new_error(SensorError::OutOfRange)
         } else {
-            Self(data & !(1 << 15)) // lop off the MSB
+            Self(data) // lop off the MSB
         }
     }
 
@@ -75,26 +75,35 @@ impl Default for SensorReading {
 
 
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Default, Deserialize, Serialize, postcard::MaxSize)]
+#[derive(Copy, Clone, PartialEq, Eq, Default, Deserialize, Serialize, postcard::MaxSize)]
 pub struct Temperature(SensorReading);
 
 const _: () = assert!(<Temperature as postcard::MaxSize>::POSTCARD_MAX_SIZE == 2);
 
 impl Temperature {
-    /// Receives a temperature with a LSB that represents 0.25 degrees C.
-    pub const fn new(temp_quarter_degree: i16) -> Self {
-        Temperature(SensorReading::new(temp_quarter_degree as u16 >> 1))
+    /// Receives a temperature in degrees Celsius.
+    pub const fn new(degrees: i16) -> Self {
+        Temperature(SensorReading::new((degrees * 2) as u16 >> 1))
     }
 
     pub const fn new_error(error: SensorError) -> Self {
         Temperature(SensorReading::new_error(error))
     }
 
-    /// Returns the temperature with a resolution of 0.5 degrees C.
-    pub fn unpack(self) -> Result<f32, SensorError> {
-        self.0.unpack().map(|temp_quarter_degree| {
-            (temp_quarter_degree << 1) as i16 as f32 / 2.0
+    /// Returns the temperature in degrees celsius.
+    pub fn unpack(self) -> Result<i16, SensorError> {
+        self.0.unpack().map(|data| {
+            (data << 1) as i16 / 2
         })
+    }
+}
+
+impl fmt::Debug for Temperature {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self.unpack() {
+            Ok(value) => write!(f, "{}°C", value),
+            Err(error) => write!(f, "{:?}", error),
+        }
     }
 }
 
