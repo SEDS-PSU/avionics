@@ -1,3 +1,5 @@
+extern crate shared;
+
 extern crate libc;
 extern crate socketcan;
 extern crate websocket;
@@ -6,6 +8,7 @@ extern crate serde_json;
 // extern crate warp;
 // extern crate tokio;
 
+use shared::{pi_output, Valves, PackedValves};
 use libc::{sched_yield, c_int, strerror};
 use socketcan::{CANSocket, CANFrame, CANFilter, EFF_MASK};
 use websocket::{Message, server::sync::Server, client::sync::Client, sender::Writer, receiver::Reader};
@@ -14,7 +17,8 @@ use serde::{Serialize, Deserialize, Serializer};
 
 // use warp::Filter;
 // use futures_util::{FutureExt, StreamExt};
-use std::{clone::Clone, time::{SystemTime, Duration}, ffi::CStr, thread, sync::{Arc, Mutex}, collections::LinkedList, convert::TryFrom};
+use std::{clone::Clone, time::{SystemTime, Duration}, ffi::CStr, thread, sync::{Arc, Mutex}, collections::HashMap,
+    convert::TryFrom, fs::File, num::NonZeroU16};
 
 extern
 {
@@ -22,10 +26,32 @@ extern
     fn set_ioprio_highest() -> c_int;
 }
 
-enum ValveSequences
+#[derive(Serialize, Deserialize)]
+struct ValveSequenceData
 {
-    TEST_SEQ_1 = 0,
-    TEST_SEQ_2 = 1
+    #[serde(flatten)]
+    sequences: HashMap<String, ValveSequence>
+}
+
+#[derive(Serialize, Deserialize)]
+struct ValveSequence
+{
+    commands: Vec<ValveSequenceCommand>
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(tag = "action")]
+enum ValveSequenceCommand
+{
+    SetValves {
+        states: Valves,
+        wait: pi_output::Wait,
+    },
+    Ignite {
+        /// The between ignition and the next command being executed.
+        /// This is in milliseconds.
+        delay: u16,
+    }
 }
 
 // trait WebSocketMessage<DataType>: Serialize
@@ -52,8 +78,17 @@ struct SensorData
 enum OutgoingMessage
 {
     SENSOR_DATA(SensorDataMessagePayload),
+    VALVE_SEQUENCE_CHANGED(ValveSequenceChangedInfo),
     FLIGHT_ABORTED(AbortCause)
 }
+
+#[derive(Serialize, Deserialize)]
+struct ValveSequenceChangedInfo
+{
+    new_valve_sequence: String,
+    reason: String
+}
+
 
 #[derive(Serialize, Deserialize)]
 struct SensorDataMessagePayload
@@ -72,7 +107,8 @@ enum IncomingMessage
 #[serde(tag = "cmd_name")]
 enum IncomingCommand
 {
-    ABORT(AbortCommandMessage)
+    ABORT(AbortCommandMessage),
+    START_VALVE_SEQUENCE{ name: String }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -106,38 +142,6 @@ struct SensorOutOfRangeAbortInfo
 const DEV_ID: u32 = 5 << 8;
 const SUBID_MASK: u32 = EFF_MASK & !0xff;
 
-const UPDATE_INTERVAL: Duration = Duration::from_millis(10);
-fn valve_periodic_update(currentSequenceLockRef: Arc<Mutex<ValveSequences>>, requestedSequenceLockRef: Arc<Mutex<ValveSequences>>,
-    sensorDataRef: Arc<Mutex<SensorData>>)
-{
-    let UPDATE_INTERVAL_NANOS: u64 = u64::try_from(UPDATE_INTERVAL.as_nanos()).unwrap();
-
-    unsafe
-    {
-        // TODO: Double-check these values
-        set_deadline_scheduling(UPDATE_INTERVAL_NANOS, UPDATE_INTERVAL_NANOS, UPDATE_INTERVAL_NANOS);
-    }
-
-    loop
-    {
-        {
-            // Valve sequencing state machine
-
-            let mut current_sequence = currentSequenceLockRef.lock().unwrap();
-
-            let new_sequence = match *current_sequence
-            {
-                ValveSequences::TEST_SEQ_1 => {
-                    ValveSequences::TEST_SEQ_1
-                },
-                ValveSequences::TEST_SEQ_2 => {
-                    ValveSequences::TEST_SEQ_2
-                }
-            }
-        }
-    }
-}
-
 // impl WebSocketMessage<SensorData> for SensorData
 // {
 //     fn getMessageType(self) -> WebSocketMessageType { WebSocketMessageType::TELEMETRY }
@@ -145,6 +149,22 @@ fn valve_periodic_update(currentSequenceLockRef: Arc<Mutex<ValveSequences>>, req
 // }
 
 fn main() {
+    println!("{}",
+    serde_json::to_string(&ValveSequenceData { sequences: HashMap::from([(String::from("startup"), ValveSequence { commands: vec!(ValveSequenceCommand::Ignite{ delay: 1000 }) })]) }).unwrap()
+    );
+
+    println!("{}",
+    serde_json::to_string(&ValveSequenceData { sequences: HashMap::from([(String::from("startup"), ValveSequence { commands: vec!(ValveSequenceCommand::SetValves{ states: Valves::default(), wait: pi_output::Wait::WaitMs(NonZeroU16::new(1000).unwrap()) }) })]) }).unwrap()
+    );
+
+    println!("{}",
+    serde_json::to_string(&ValveSequenceData { sequences: HashMap::from([(String::from("startup"), ValveSequence { commands: vec!(ValveSequenceCommand::SetValves{ states: Valves::default(), wait: pi_output::Wait::Forever }) })]) }).unwrap()
+    );
+
+    let valve_sequences: ValveSequenceData =
+        serde_json::from_reader::<File, ValveSequenceData>(File::open("valve_sequences.json").unwrap()).unwrap();
+    let mut current_valve_sequence: Arc<Mutex<String>> = Arc::new(Mutex::from(String::from("startup")));
+
     let mut active_connections_mutex: Arc<Mutex<Vec<Writer<std::net::TcpStream>>>> = Arc::new(Mutex::from(Vec::new()));
     let sensor_data_mutex: Arc<Mutex<SensorData>> = Arc::new(Mutex::from(SensorData { engine_thermocouple: 0.0 }));
 
@@ -167,7 +187,8 @@ fn main() {
             let (rx, tx) = client_connection.split().unwrap();
             active_connections.push(tx);
             let receiver_conn_ref = Arc::clone(&ws_thread_connections_mutex);
-            thread::spawn(move || receive_commands(rx, receiver_conn_ref));
+            let valve_seq_ref = Arc::clone(&current_valve_sequence);
+            thread::spawn(move || receive_commands(rx, receiver_conn_ref, valve_seq_ref));
         }
 
         update_sender_thread.join().unwrap();
@@ -214,7 +235,7 @@ fn main() {
         {
             3 => { 
                 sensor_data.engine_thermocouple = sensor_data_double;
-                if sensor_data.engine_thermocouple > 0.99
+                if sensor_data.engine_thermocouple > 1.2
                 {
                     eprintln!("FATAL: Out of range reading for engine thermocouple: {}", sensor_data.engine_thermocouple);
                     // TODO: Use proper abort handler
@@ -239,7 +260,8 @@ fn main() {
     websocket_thread_handle.join().unwrap();
 }
 
-fn receive_commands(mut ws_input: Reader<std::net::TcpStream>, mut active_connections_mutex: Arc<Mutex<Vec<Writer<std::net::TcpStream>>>>)
+fn receive_commands(mut ws_input: Reader<std::net::TcpStream>, mut active_connections_mutex: Arc<Mutex<Vec<Writer<std::net::TcpStream>>>>,
+                    mut current_valve_seq: Arc<Mutex<String>>)
 {
     loop
     {
@@ -252,7 +274,7 @@ fn receive_commands(mut ws_input: Reader<std::net::TcpStream>, mut active_connec
                         match serde_json::from_str::<IncomingMessage>(&text_data)
                         {
                             Ok(parsed_msg) => {
-                                handle_message(parsed_msg, &mut active_connections_mutex);
+                                handle_message(parsed_msg, &mut active_connections_mutex, &mut current_valve_seq);
                             },
                             Err(info) => {
                                 println!("WARNING: Could not parse incoming message: {:?}", info);
@@ -276,13 +298,20 @@ fn receive_commands(mut ws_input: Reader<std::net::TcpStream>, mut active_connec
     }
 }
 
-fn handle_message(message: IncomingMessage, active_connections_mutex: &mut Arc<Mutex<Vec<Writer<std::net::TcpStream>>>>)
+fn handle_message(message: IncomingMessage, active_connections_mutex: &mut Arc<Mutex<Vec<Writer<std::net::TcpStream>>>>,
+                  current_valve_seq: &mut Arc<Mutex<String>>)
 {
     match message
     {
         IncomingMessage::COMMAND(cmd) => {
             match cmd
             {
+                IncomingCommand::START_VALVE_SEQUENCE{ name } => {
+                    *current_valve_seq.lock().unwrap() = name.clone();
+
+                    let seq_changed_msg = OutgoingMessage::VALVE_SEQUENCE_CHANGED(ValveSequenceChangedInfo { new_valve_sequence: name, reason: String::from("Command sent from ground station") });
+                    send_broadcast(active_connections_mutex, &Message::text(serde_json::to_string(&seq_changed_msg).unwrap()));
+                },
                 IncomingCommand::ABORT(abort_msg) => {
                     // TODO: Implement a proper abort handler here
                     eprintln!("FATAL: Abort was triggered from ground station for the following reason: {}", abort_msg.reason);

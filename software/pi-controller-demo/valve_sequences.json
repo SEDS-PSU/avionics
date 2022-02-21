@@ -1,0 +1,22 @@
+{
+    "startup": {
+        "commands": [
+            {
+                "action": "SetValves",
+                "states": {
+                    "fc_fp": "Closed",
+                    "fc_op": "Closed",
+                    "fo_p": "Closed",
+                    "pv_f": "NitrogenPathway",
+                    "fo_fp": "Closed",
+                    "fc_p": "Closed",
+                    "pv_o": "NitrogenPathway",
+                    "fo_op": "Closed",
+                    "fc1_o": "Closed",
+                    "fc2_o": "Closed"
+                },
+                "wait": 500
+            }
+        ]
+    }
+}

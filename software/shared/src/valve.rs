@@ -2,7 +2,7 @@ use core::mem;
 
 use serde::{Serialize, Deserialize};
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Valves {
     pub fc_fp: TwoWay,
     pub fc_op: TwoWay,
@@ -81,7 +81,7 @@ pub struct PackedValves(u16);
 
 const _: () = assert!(<PackedValves as postcard::MaxSize>::POSTCARD_MAX_SIZE == 2);
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TwoWay {
     /// The valve is closed.
     Closed,
@@ -89,7 +89,7 @@ pub enum TwoWay {
     Open,
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ThreeWay {
     /// The valve is routed from the nitrogen purge tank into the chamber.
     NitrogenPathway,
