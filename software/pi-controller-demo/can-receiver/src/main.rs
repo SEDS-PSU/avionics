@@ -5,10 +5,11 @@ extern crate socketcan;
 extern crate websocket;
 extern crate serde;
 extern crate serde_json;
+extern crate postcard;
 // extern crate warp;
 // extern crate tokio;
 
-use shared::{pi_output, Valves, PackedValves};
+use shared::{pi_output, Valves, PackedValves, RASPI_ID, OUTPUT_BOARD_ID};
 use libc::{sched_yield, c_int, strerror};
 use socketcan::{CANSocket, CANFrame, CANFilter, EFF_MASK};
 use websocket::{Message, server::sync::Server, client::sync::Client, sender::Writer, receiver::Reader};
@@ -51,6 +52,22 @@ enum ValveSequenceCommand
         /// The between ignition and the next command being executed.
         /// This is in milliseconds.
         delay: u16,
+    }
+}
+
+impl From<&ValveSequenceCommand> for pi_output::Command
+{
+    fn from(v: &ValveSequenceCommand) -> Self
+    {
+        match v
+        {
+            ValveSequenceCommand::SetValves { states, wait } => {
+                pi_output::Command::SetValves { states: (*states).into(), wait: *wait }
+            },
+            ValveSequenceCommand::Ignite { delay } => {
+                pi_output::Command::Ignite { delay: *delay }
+            }
+        }
     }
 }
 
@@ -139,7 +156,7 @@ struct SensorOutOfRangeAbortInfo
     value: f64
 }
 
-const DEV_ID: u32 = 5 << 8;
+const DEV_ID: u32 = (RASPI_ID as u32) << 8;
 const SUBID_MASK: u32 = EFF_MASK & !0xff;
 
 // impl WebSocketMessage<SensorData> for SensorData
@@ -163,6 +180,8 @@ fn main() {
 
     let valve_sequences: ValveSequenceData =
         serde_json::from_reader::<File, ValveSequenceData>(File::open("valve_sequences.json").unwrap()).unwrap();
+    let valve_sequences_ref = Arc::new(valve_sequences);
+
     let mut current_valve_sequence: Arc<Mutex<String>> = Arc::new(Mutex::from(String::from("startup")));
 
     let mut active_connections_mutex: Arc<Mutex<Vec<Writer<std::net::TcpStream>>>> = Arc::new(Mutex::from(Vec::new()));
@@ -188,7 +207,8 @@ fn main() {
             active_connections.push(tx);
             let receiver_conn_ref = Arc::clone(&ws_thread_connections_mutex);
             let valve_seq_ref = Arc::clone(&current_valve_sequence);
-            thread::spawn(move || receive_commands(rx, receiver_conn_ref, valve_seq_ref));
+            let valve_sequences_thread_ref = Arc::clone(&valve_sequences_ref);
+            thread::spawn(move || receive_commands(rx, receiver_conn_ref, valve_seq_ref, valve_sequences_thread_ref));
         }
 
         update_sender_thread.join().unwrap();
@@ -260,9 +280,28 @@ fn main() {
     websocket_thread_handle.join().unwrap();
 }
 
-fn receive_commands(mut ws_input: Reader<std::net::TcpStream>, mut active_connections_mutex: Arc<Mutex<Vec<Writer<std::net::TcpStream>>>>,
-                    mut current_valve_seq: Arc<Mutex<String>>)
+fn send_output_board_valve_seq(sequence: &ValveSequence, can_socket: &mut CANSocket)
 {
+    let begin_msg = pi_output::Request::BeginSequence { length: u8::try_from(sequence.commands.len()).unwrap() };
+    let mut begin_msg_buf: [u8; 8] = [0; 8];
+    let begin_msg_bytes = postcard::to_slice(&begin_msg, &mut begin_msg_buf).unwrap();
+    can_socket.write_frame_insist(&CANFrame::new(u32::from(OUTPUT_BOARD_ID) << 8, &begin_msg_bytes, false, false).unwrap()).unwrap();
+
+    for command in &sequence.commands
+    {
+        let can_command = pi_output::Command::from(command);
+        let mut this_msg_buf: [u8; 8] = [0; 8];
+        let this_msg_bytes = postcard::to_slice(&can_command, &mut this_msg_buf).unwrap();
+        can_socket.write_frame_insist(&CANFrame::new(u32::from(OUTPUT_BOARD_ID) << 8, &this_msg_bytes, false, false).unwrap()).unwrap();
+    }
+}
+
+fn receive_commands(mut ws_input: Reader<std::net::TcpStream>, mut active_connections_mutex: Arc<Mutex<Vec<Writer<std::net::TcpStream>>>>,
+                    mut current_valve_seq: Arc<Mutex<String>>, all_sequences: Arc<ValveSequenceData>)
+{
+    let mut socket: CANSocket = CANSocket::open("vcan0").expect("Failed to open CAN socket.");
+    socket.filter_drop_all().unwrap();
+
     loop
     {
         match ws_input.recv_message()
@@ -274,7 +313,7 @@ fn receive_commands(mut ws_input: Reader<std::net::TcpStream>, mut active_connec
                         match serde_json::from_str::<IncomingMessage>(&text_data)
                         {
                             Ok(parsed_msg) => {
-                                handle_message(parsed_msg, &mut active_connections_mutex, &mut current_valve_seq);
+                                handle_message(parsed_msg, &mut active_connections_mutex, &mut current_valve_seq, &all_sequences, &mut socket);
                             },
                             Err(info) => {
                                 println!("WARNING: Could not parse incoming message: {:?}", info);
@@ -299,7 +338,7 @@ fn receive_commands(mut ws_input: Reader<std::net::TcpStream>, mut active_connec
 }
 
 fn handle_message(message: IncomingMessage, active_connections_mutex: &mut Arc<Mutex<Vec<Writer<std::net::TcpStream>>>>,
-                  current_valve_seq: &mut Arc<Mutex<String>>)
+                  current_valve_seq: &mut Arc<Mutex<String>>, all_sequences: &Arc<ValveSequenceData>, can_socket: &mut CANSocket)
 {
     match message
     {
@@ -307,10 +346,19 @@ fn handle_message(message: IncomingMessage, active_connections_mutex: &mut Arc<M
             match cmd
             {
                 IncomingCommand::START_VALVE_SEQUENCE{ name } => {
-                    *current_valve_seq.lock().unwrap() = name.clone();
+                    if all_sequences.sequences.contains_key(&name)
+                    {
+                        *current_valve_seq.lock().unwrap() = name.clone();
 
-                    let seq_changed_msg = OutgoingMessage::VALVE_SEQUENCE_CHANGED(ValveSequenceChangedInfo { new_valve_sequence: name, reason: String::from("Command sent from ground station") });
-                    send_broadcast(active_connections_mutex, &Message::text(serde_json::to_string(&seq_changed_msg).unwrap()));
+                        send_output_board_valve_seq(&all_sequences.sequences[&name], can_socket);
+
+                        let seq_changed_msg = OutgoingMessage::VALVE_SEQUENCE_CHANGED(ValveSequenceChangedInfo { new_valve_sequence: name, reason: String::from("Command sent from ground station") });
+                        send_broadcast(active_connections_mutex, &Message::text(serde_json::to_string(&seq_changed_msg).unwrap()));
+                    }
+                    else
+                    {
+                        eprintln!("WARNING: Ignoring invalid valve sequence name: {}", name);
+                    }
                 },
                 IncomingCommand::ABORT(abort_msg) => {
                     // TODO: Implement a proper abort handler here

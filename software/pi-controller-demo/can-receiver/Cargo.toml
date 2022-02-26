@@ -10,6 +10,7 @@ cc = "1.0"
 
 [dependencies]
 shared = { path = "../../shared" }
+postcard = { git = "https://github.com/lachlansneff/postcard.git", branch = "max-serialization-size" }
 libc = "0.2"
 socketcan = "1.7.0"
 websocket = "0.26.2"
