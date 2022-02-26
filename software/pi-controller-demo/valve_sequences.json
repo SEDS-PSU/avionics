@@ -15,7 +15,7 @@
                     "fc1_o": "Closed",
                     "fc2_o": "Closed"
                 },
-                "wait": 500
+                "wait": {"WaitMs": 500}
             }
         ]
     }

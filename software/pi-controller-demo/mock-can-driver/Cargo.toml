@@ -4,5 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+shared = { path = "../../shared" }
+postcard = { git = "https://github.com/lachlansneff/postcard.git", branch = "max-serialization-size" }
 socketcan = "1.7.0"
 # rtnetlink = "0.8.1"

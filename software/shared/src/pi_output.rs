@@ -23,7 +23,6 @@ pub enum Request {
 const _: () = assert!(<Request as postcard::MaxSize>::POSTCARD_MAX_SIZE == 3);
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Deserialize, Serialize, postcard::MaxSize)]
-#[serde(untagged)]
 pub enum Wait {
     WaitMs(NonZeroU16),
     Forever,
