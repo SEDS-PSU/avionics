@@ -19,9 +19,11 @@ const _: () = assert!(<Request as postcard::MaxSize>::POSTCARD_MAX_SIZE == 1);
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Deserialize, Serialize, postcard::MaxSize)]
 pub struct ResponseHeader {
     pub doing_good: bool,
+    /// The battery voltage in millivolts.
+    pub battery_millivolts: Option<u16>,
 }
 
-const _: () = assert!(<ResponseHeader as postcard::MaxSize>::POSTCARD_MAX_SIZE == 1);
+const _: () = assert!(<ResponseHeader as postcard::MaxSize>::POSTCARD_MAX_SIZE == 4);
 
 #[derive(Debug)]
 pub enum SensorError {
