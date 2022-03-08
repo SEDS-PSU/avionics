@@ -7621,7 +7621,7 @@
     (in_bom yes) (on_board yes)
     (uuid b13b6aee-f458-49d5-9502-2acaf445cf20)
     (property "Reference" "J31" (id 0) (at 24.892 215.9 0))
-    (property "Value" "Spare_HR_2" (id 1) (at 21.082 213.36 0))
+    (property "Value" "Spare_HR_2" (id 1) (at 19.05 209.55 0))
     (property "Footprint" "Custom_Molex_SL_2.54:SL_2.54_H_4pin" (id 2) (at 26.67 209.55 0)
       (effects (font (size 1.27 1.27)) hide)
     )
