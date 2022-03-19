@@ -2,4 +2,5 @@
   (lib (name "2021-09-18_15-04-13")(type "KiCad")(uri "${KIPRJMOD}/../libraries/BSS806N (MOSFET)/2021-09-18_15-04-13.kicad_sym")(options "")(descr ""))
   (lib (name "2021-09-18_15-12-50")(type "KiCad")(uri "${KIPRJMOD}/../libraries/ul_STM32F446ZEH6/KiCAD/2021-09-18_15-12-50/2021-09-18_15-12-50.kicad_sym")(options "")(descr ""))
   (lib (name "ArmingMOSFET")(type "KiCad")(uri "${KIPRJMOD}/../libraries/BUK9Y25-60E (MOSFET)/2021-10-14_00-54-29.kicad_sym")(options "")(descr ""))
+  (lib (name "2022-03-14_22-38-09")(type "KiCad")(uri "${KIPRJMOD}/../libraries/MAX33014E/2022-03-14_22-38-09.kicad_sym")(options "")(descr ""))
 )
