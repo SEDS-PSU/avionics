@@ -2978,7 +2978,7 @@
     (property "Value" "Q_NMOS_GSD" (id 1) (at 64.9224 141.5666 0)
       (effects (font (size 1.27 1.27)) (justify left))
     )
-    (property "Footprint" "Package_TO_SOT_SMD:SOT-223" (id 2) (at 64.77 137.16 0)
+    (property "Footprint" "Package_TO_SOT_SMD:SOT-23" (id 2) (at 64.77 137.16 0)
       (effects (font (size 1.27 1.27)) hide)
     )
     (property "Datasheet" "~" (id 3) (at 59.69 139.7 0)
@@ -3194,7 +3194,7 @@
       (reference "Q2") (unit 2) (value "DMMT5401") (footprint "Package_TO_SOT_SMD:SOT-23-6")
     )
     (path "/fbf20826-a7f6-4550-bbd0-19e2c0d32370"
-      (reference "Q3") (unit 1) (value "Q_NMOS_GSD") (footprint "Package_TO_SOT_SMD:SOT-223")
+      (reference "Q3") (unit 1) (value "Q_NMOS_GSD") (footprint "Package_TO_SOT_SMD:SOT-23")
     )
     (path "/6d4e5957-6764-40d7-9d3e-e16ba095c79a"
       (reference "R1") (unit 1) (value "10k") (footprint "Resistor_SMD:R_0603_1608Metric")
