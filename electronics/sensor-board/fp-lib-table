@@ -11,4 +11,6 @@
   (lib (name "Custom_button_CS1102")(type "KiCad")(uri "${KIPRJMOD}/../libraries/Button CS1102/footprints.pretty")(options "")(descr ""))
   (lib (name "CustomFootprints")(type "KiCad")(uri "${KIPRJMOD}/../libraries/CustomFootprints.pretty")(options "")(descr ""))
   (lib (name "Custom_Molex_SL_2.54")(type "KiCad")(uri "${KIPRJMOD}/../libraries/Custom_Molex_SL_2.54/Custom_Molex_SL_2.54.pretty")(options "")(descr ""))
+  (lib (name "3.3V Zener")(type "KiCad")(uri "${KIPRJMOD}/../libraries/CZRF52C3V3/KiCAD/2022-03-20_21-13-50/footprints.pretty")(options "")(descr ""))
+  (lib (name "MAX33014E")(type "KiCad")(uri "${KIPRJMOD}/../libraries/MAX33014E/footprints.pretty")(options "")(descr ""))
 )
