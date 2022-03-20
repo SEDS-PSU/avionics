@@ -362,7 +362,7 @@ mod app {
         let bat_voltage = adc1
             .read(&mut analog_pins.battery)
             .ok()
-            .map(|s: u16| s * 1200 / adc1.read_vref());
+            .map(|s: u16| ((s as u32) * 1200 / (adc1.read_vref() as u32)).try_into().expect("calculation for battery voltage was wrong"));
 
         (sensor_data, battery_millivolts).lock(|sensor_data, bat| {
             sensor_data.fm_f = fm_f;
