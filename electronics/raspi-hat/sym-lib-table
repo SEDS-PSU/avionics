@@ -4,4 +4,5 @@
   (lib (name "DMMT5401-7-F")(type "Legacy")(uri "${KIPRJMOD}/../libraries/ul_DMMT5401-7-F/DMMT5401-7-F.lib")(options "")(descr ""))
   (lib (name "MYSGK02506BRSR")(type "Legacy")(uri "${KIPRJMOD}/../libraries/IC_Murata_MYSGK02506BRSR/MYSGK02506BRSR.lib")(options "")(descr ""))
   (lib (name "MYMGA5R04RELA5RA")(type "Legacy")(uri "${KIPRJMOD}/../libraries/ul_MYMGA5R04RELA5RA/MYMGA5R04RELA5RA.lib")(options "")(descr ""))
+  (lib (name "MAX33014EATB+")(type "Legacy")(uri "${KIPRJMOD}/../libraries/MAX33014E/2022-03-14_22-38-09.lib")(options "")(descr ""))
 )
