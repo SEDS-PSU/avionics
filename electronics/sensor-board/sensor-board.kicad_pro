@@ -414,7 +414,7 @@
     "meta": {
       "version": 1
     },
-    "net_format_name": "",
+    "net_format_name": "Spice",
     "ngspice": {
       "fix_include_paths": true,
       "fix_passive_vals": false,
@@ -446,7 +446,7 @@
     ],
     [
       "7f86c03b-4788-4ee3-8e3a-c7f88ba5f5f3",
-      "Load Cell"
+      "Load Cell 1"
     ],
     [
       "0723ec3f-6079-4e38-948e-50d06633977c",
@@ -459,6 +459,10 @@
     [
       "2a3b537d-343e-4e71-aa96-9320e2f8697e",
       "Pressure and Flow"
+    ],
+    [
+      "59db9306-5f79-4444-a38c-9189b45c059f",
+      "Load Cell 2"
     ]
   ],
   "text_variables": {}

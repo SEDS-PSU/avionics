@@ -10,6 +10,6 @@
   (lib (name "MCP96RL01T")(type "KiCad")(uri "${KIPRJMOD}/../libraries/MCP96RL01T/MCP96RL01T.kicad_sym")(options "")(descr ""))
   (lib (name "STM32F105VBH6")(type "Legacy")(uri "${KIPRJMOD}/../libraries/STM32F105VBH6/KiCAD/2021-11-09_20-32-54/2021-11-09_20-32-54.lib")(options "")(descr ""))
   (lib (name "K_type_thermo_conn_F")(type "KiCad")(uri "${KIPRJMOD}/../libraries/K_type_thermo_conn_F.pretty/K_type_thermo_conn_F.kicad_sym")(options "")(descr ""))
-  (lib (name "3.3V Zener")(type "Legacy")(uri "${KIPRJMOD}/../libraries/CZRF52C3V3/KiCAD/2022-03-20_21-13-50/2022-03-20_21-13-50.lib")(options "")(descr ""))
   (lib (name "MAX33014E")(type "KiCad")(uri "${KIPRJMOD}/../libraries/MAX33014E/2022-03-14_22-38-09.kicad_sym")(options "")(descr ""))
+  (lib (name "3.3V Zener")(type "Legacy")(uri "${KIPRJMOD}/../libraries/MM3Z3V6C/KiCAD/2022-03-21_06-23-53/2022-03-21_06-23-53.lib")(options "")(descr ""))
 )
