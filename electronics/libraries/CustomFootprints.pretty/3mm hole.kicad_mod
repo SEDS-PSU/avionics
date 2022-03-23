@@ -1,6 +1,6 @@
 (footprint "3mm hole" (version 20211014) (generator pcbnew)
   (layer "F.Cu")
-  (tedit 62363620)
+  (tedit 623AA097)
   (attr through_hole)
   (fp_text reference "REF**" (at 0.0762 5.2832 unlocked) (layer "F.SilkS")
     (effects (font (size 1 1) (thickness 0.15)))
@@ -14,12 +14,13 @@
     (effects (font (size 1 1) (thickness 0.15)))
     (tstamp 81c041f3-483e-477d-9475-d108280de2a9)
   )
+  (fp_circle (center 0 0) (end 3.25 0) (layer "F.Cu") (width 2) (fill none) (tstamp 0d979f41-87da-4d87-a9dc-4b45fa527747))
   (pad "" np_thru_hole circle (at 0 0) (size 3.2 3.2) (drill 3) (layers F&B.Cu *.Mask)
     (clearance 3.5) (tstamp 25d545dc-8f50-4573-922c-35ef5a2a3a19))
-  (zone (net 0) (net_name "") (layers *.Cu) (tstamp f0e6fae4-0008-43ed-8719-bf62839f601f) (hatch edge 0.508)
+  (zone (net 0) (net_name "") (layers *.Cu) (tstamp ef63f811-6bce-4605-aef1-527acb87db1b) (hatch edge 0.508)
     (connect_pads (clearance 0))
     (min_thickness 0.254)
-    (keepout (tracks not_allowed) (vias not_allowed) (pads not_allowed ) (copperpour not_allowed) (footprints not_allowed))
+    (keepout (tracks not_allowed) (vias allowed) (pads allowed ) (copperpour not_allowed) (footprints not_allowed))
     (fill (thermal_gap 0.508) (thermal_bridge_width 0.508))
     (polygon
       (pts

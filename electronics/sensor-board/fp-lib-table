@@ -2,7 +2,6 @@
   (lib (name "BSS806N (MOSFET)")(type "KiCad")(uri "${KIPRJMOD}/../libraries/BSS806N (MOSFET)/footprints.pretty")(options "")(descr ""))
   (lib (name "MAX33012EASA+")(type "KiCad")(uri "${KIPRJMOD}/../libraries/MAX33012EASA+/footprints.pretty")(options "")(descr ""))
   (lib (name "ADS114S08BIPBSR")(type "KiCad")(uri "${KIPRJMOD}/../libraries/ul_ADS114S08BIPBSR/KiCAD/2021-09-18_15-05-13/footprints.pretty")(options "")(descr ""))
-  (lib (name "STM32F446ZEH6")(type "KiCad")(uri "${KIPRJMOD}/../libraries/ul_STM32F446ZEH6/KiCAD/2021-09-18_15-12-50/footprints.pretty")(options "")(descr ""))
   (lib (name "MAXM17634AMG+")(type "KiCad")(uri "${KIPRJMOD}/..//libraries/MAXM17634AMG+/footprints.pretty")(options "")(descr ""))
   (lib (name "MAX44252ASD-")(type "KiCad")(uri "${KIPRJMOD}/../libraries/ul_MAX44252ASD-/KiCAD/2021-10-15_02-36-06/footprints.pretty")(options "")(descr ""))
   (lib (name "LMC6036")(type "KiCad")(uri "${KIPRJMOD}/../libraries/LMC6036/SOP65P640X120-14N")(options "")(descr ""))
@@ -13,4 +12,5 @@
   (lib (name "Custom_Molex_SL_2.54")(type "KiCad")(uri "${KIPRJMOD}/../libraries/Custom_Molex_SL_2.54/Custom_Molex_SL_2.54.pretty")(options "")(descr ""))
   (lib (name "MAX33014E")(type "KiCad")(uri "${KIPRJMOD}/../libraries/MAX33014E/footprints.pretty")(options "")(descr ""))
   (lib (name "3.3V Zener")(type "KiCad")(uri "${KIPRJMOD}/../libraries/MM3Z3V6C/KiCAD/2022-03-21_06-23-53/footprints.pretty")(options "")(descr ""))
+  (lib (name "STM32F105VB")(type "KiCad")(uri "${KIPRJMOD}/../libraries/STM32F105VBH6/KiCAD/2021-11-09_20-32-54/footprints.pretty")(options "")(descr ""))
 )
