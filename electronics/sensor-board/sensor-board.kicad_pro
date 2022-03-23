@@ -414,7 +414,7 @@
     "meta": {
       "version": 1
     },
-    "net_format_name": "Spice",
+    "net_format_name": "KiCad",
     "ngspice": {
       "fix_include_paths": true,
       "fix_passive_vals": false,
@@ -439,10 +439,6 @@
     [
       "993e22cc-8b33-44b7-98b3-bbbd11e9ffb1",
       "Thermocouples"
-    ],
-    [
-      "2b0f7954-3f7d-4876-883a-efca232b0120",
-      "SPARE_gen_purp_amp"
     ],
     [
       "7f86c03b-4788-4ee3-8e3a-c7f88ba5f5f3",
