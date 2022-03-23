@@ -6721,7 +6721,7 @@
     (property "Value" "TestPoint" (id 1) (at 355.6 93.2179 0)
       (effects (font (size 1.27 1.27)) (justify left))
     )
-    (property "Footprint" "CustomFootprints:seds-logo-back" (id 2) (at 358.14 95.25 0)
+    (property "Footprint" "CustomFootprints:seds-logo-back-2" (id 2) (at 358.14 95.25 0)
       (effects (font (size 1.27 1.27)) hide)
     )
     (property "Datasheet" "~" (id 3) (at 358.14 95.25 0)
@@ -9925,7 +9925,7 @@
       (reference "TP2") (unit 1) (value "TestPoint") (footprint "CustomFootprints:seds-logo-2")
     )
     (path "/2e87d311-ac79-45de-a69a-394f2b78548c"
-      (reference "TP3") (unit 1) (value "TestPoint") (footprint "CustomFootprints:seds-logo-back")
+      (reference "TP3") (unit 1) (value "TestPoint") (footprint "CustomFootprints:seds-logo-back-2")
     )
     (path "/17bb4b92-1b60-430a-b198-ad6daff5ea04"
       (reference "TP6") (unit 1) (value "CAN_H") (footprint "TestPoint:TestPoint_Pad_D2.0mm")
