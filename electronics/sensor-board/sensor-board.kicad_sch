@@ -6715,7 +6715,7 @@
   (symbol (lib_id "Connector:TestPoint") (at 353.06 95.25 0) (unit 1)
     (in_bom yes) (on_board yes) (fields_autoplaced)
     (uuid 2e87d311-ac79-45de-a69a-394f2b78548c)
-    (property "Reference" "TP?" (id 0) (at 355.6 90.6779 0)
+    (property "Reference" "TP3" (id 0) (at 355.6 90.6779 0)
       (effects (font (size 1.27 1.27)) (justify left))
     )
     (property "Value" "TestPoint" (id 1) (at 355.6 93.2179 0)
@@ -9924,6 +9924,9 @@
     (path "/3a4d7f57-2149-4ac7-9c2d-3c8eb2c08b85"
       (reference "TP2") (unit 1) (value "TestPoint") (footprint "CustomFootprints:seds-logo-2")
     )
+    (path "/2e87d311-ac79-45de-a69a-394f2b78548c"
+      (reference "TP3") (unit 1) (value "TestPoint") (footprint "CustomFootprints:seds-logo-back")
+    )
     (path "/17bb4b92-1b60-430a-b198-ad6daff5ea04"
       (reference "TP6") (unit 1) (value "CAN_H") (footprint "TestPoint:TestPoint_Pad_D2.0mm")
     )
@@ -9953,9 +9956,6 @@
     )
     (path "/275e6f4f-326e-41bb-afe2-dcdcb19e9966"
       (reference "TP15") (unit 1) (value "ADC 13") (footprint "TestPoint:TestPoint_Pad_D2.0mm")
-    )
-    (path "/2e87d311-ac79-45de-a69a-394f2b78548c"
-      (reference "TP?") (unit 1) (value "TestPoint") (footprint "CustomFootprints:seds-logo-back")
     )
     (path "/f6efdadb-45b3-4c4e-a70c-d1355b29e4f7"
       (reference "U1") (unit 1) (value "LD3985M33R_SOT23") (footprint "Package_TO_SOT_SMD:SOT-23-5")
