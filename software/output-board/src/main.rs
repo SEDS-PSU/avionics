@@ -203,6 +203,29 @@ mod app {
         // oscillate_valves::spawn().unwrap();                  //Test Valves
         // ignite::spawn_after(Duration::secs(5)).unwrap();     //Test Igniter
 
+        let mock_commands = [
+            pi_output::Command::SetValves {
+                states: Valves {
+                    fc_fp: TwoWay::Closed,
+                    ..Default::default()
+                }.into(),
+                wait: pi_output::Wait::WaitMs(2000.try_into().unwrap())
+            },
+            pi_output::Command::SetValves {
+                states: Valves {
+                    fc_fp: TwoWay::Open,
+                    ..Default::default()
+                }.into(),
+                wait: pi_output::Wait::Forever,
+            },
+        ];
+        
+        for cmd in mock_commands {
+            cx.local.command_list.push_back(cmd).unwrap();
+        }
+
+        execute_commands::spawn().unwrap();
+
         // Setup the monotonic timer
         (
             Shared {
@@ -213,7 +236,7 @@ mod app {
                 arming_switch,
                 ignition_detection,
 
-                commands: (CommandState::Loading, cx.local.command_list),
+                commands: (CommandState::Executing { handle: None, ignition_delay: None }, cx.local.command_list),
             },
             Local {
                 can_tx,
@@ -489,6 +512,12 @@ mod app {
                 // This can't overflow, since the length is a max of 255.
                 command_list.push_back(command).unwrap();
                 *commands_count -= 1;
+
+                if *commands_count == 0 {
+                    // Start executing the commands.
+                    execute_commands::spawn().expect("failed to spawn `execute_commands`");
+                    *command_state = CommandState::Executing { handle: None, ignition_delay: None };
+                }
 
                 return Ok(())
             } else {

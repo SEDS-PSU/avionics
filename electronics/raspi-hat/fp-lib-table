@@ -4,4 +4,6 @@
   (lib (name "MYSGK02506BRSR")(type "KiCad")(uri "${KIPRJMOD}/../libraries/IC_Murata_MYSGK02506BRSR/eec.pretty")(options "")(descr ""))
   (lib (name "MYMGA5R04RELA5RA")(type "KiCad")(uri "${KIPRJMOD}/../libraries/ul_MYMGA5R04RELA5RA/footprints.pretty")(options "")(descr ""))
   (lib (name "Custom Footprints")(type "KiCad")(uri "${KIPRJMOD}/../libraries/CustomFootprints.pretty")(options "")(descr ""))
+  (lib (name "PS1420P02CT")(type "KiCad")(uri "${KIPRJMOD}/../libraries/PS1420P02CT/footprints.pretty")(options "")(descr ""))
+  (lib (name "MAX33014E")(type "KiCad")(uri "${KIPRJMOD}/../libraries/MAX33014E/footprints.pretty")(options "")(descr ""))
 )

@@ -18,27 +18,36 @@ const RASPI_ID: bxcan::StandardId = if let Some(id) = bxcan::StandardId::new(sha
 } else {
     panic!("RASPI_ID is not a valid standard CAN ID");
 };
-const SENSOR_BOARD_ID: bxcan::StandardId = if let Some(id) = bxcan::StandardId::new(shared::SENSOR_BOARD_ID) {
-    id
-} else {
-    panic!("SENSOR_ID is not a valid standard CAN ID");
-};
+const SENSOR_BOARD_ID: bxcan::StandardId =
+    if let Some(id) = bxcan::StandardId::new(shared::SENSOR_BOARD_ID) {
+        id
+    } else {
+        panic!("SENSOR_ID is not a valid standard CAN ID");
+    };
 
 #[rtic::app(device = stm32f1xx_hal::pac, dispatchers = [EXTI0])]
 mod app {
     use core::fmt;
 
-    use crate::{SENSOR_BOARD_ID, FREQUENCY, Duration};
-    use bxcan::{filter::Mask32, Frame, Interrupts, Rx, Tx, StandardId};
+    use crate::{Duration, FREQUENCY, SENSOR_BOARD_ID};
+    use bxcan::{filter::Mask32, Frame, Interrupts, Rx, StandardId, Tx};
     use dwt_systick_monotonic::DwtSystick;
-    use heapless::{spsc::Queue};
-    use mcp96x::{MCP96X, ThermocoupleType, FilterCoefficient};
+    use heapless::spsc::Queue;
+    use mcp96x::{FilterCoefficient, ThermocoupleType, MCP96X};
     use postcard::MaxSize;
-    use shared::pi_sensor::{self, SensorReading, Temperature, SensorError, Force};
+    use shared::pi_sensor::{self, Force, SensorError, SensorReading, Temperature};
     use stm32f1xx_hal::{
+        adc::Adc,
         can::Can,
-        pac::{Interrupt, CAN1, ADC1, I2C1},
-        prelude::*, adc::Adc, gpio::{gpioa::{PA0, PA1, PA6, PA7, PA4, PA5, PA2, PA3}, Analog, gpiob::{PB0, PB1, PB7, PB6}, gpioc::{PC0, PC1, PC2}, Alternate, OpenDrain}, i2c::BlockingI2c,
+        gpio::{
+            gpioa::{PA0, PA1, PA2, PA3, PA4, PA5, PA6, PA7},
+            gpiob::{PB0, PB1, PB6, PB7},
+            gpioc::{PC0, PC1, PC2, PC3},
+            Alternate, Analog, OpenDrain,
+        },
+        i2c::BlockingI2c,
+        pac::{Interrupt, ADC1, CAN1, I2C1},
+        prelude::*,
     };
 
     use crate::RASPI_ID;
@@ -66,6 +75,8 @@ mod app {
 
         flow1: PC1<Analog>,
         flow2: PC2<Analog>,
+
+        battery: PC3<Analog>, // Assignment may change.
     }
 
     pub struct Thermocouples {
@@ -84,6 +95,7 @@ mod app {
         /// This has a capacity of 15, according to the documentation.
         can_tx_queue: Queue<Frame, 16>,
 
+        battery_millivolts: Option<u16>,
         sensor_data: pi_sensor::AllSensors,
     }
 
@@ -142,10 +154,12 @@ mod app {
 
             flow1: gpioc.pc1.into_analog(&mut gpioc.crl),
             flow2: gpioc.pc2.into_analog(&mut gpioc.crl),
+
+            battery: gpioc.pc3.into_analog(&mut gpioc.crl),
         };
-    
+
         let mut dwt = cx.core.DWT;
-        
+
         // Set up the I2C bus.
         dwt.enable_cycle_counter();
 
@@ -172,19 +186,65 @@ mod app {
             match res {
                 Ok(t) => Some(t),
                 Err(e) => {
-                    defmt::error!("failed to initialize thermocouple {}: {:?}", n, defmt::Debug2Format(&e));
+                    defmt::error!(
+                        "failed to initialize thermocouple {}: {:?}",
+                        n,
+                        defmt::Debug2Format(&e)
+                    );
                     None
                 }
             }
         }
 
         let thermocouples = Thermocouples {
-            thermo1: to_opt(MCP96X::new(bus_manager.acquire_i2c(), ThermocoupleType::K, FilterCoefficient::Maximum), 1),
-            thermo2: to_opt(MCP96X::new(bus_manager.acquire_i2c(), ThermocoupleType::K, FilterCoefficient::Maximum), 2),
-            thermo3: to_opt(MCP96X::new(bus_manager.acquire_i2c(), ThermocoupleType::K, FilterCoefficient::Maximum), 3),
-            thermo4: to_opt(MCP96X::new(bus_manager.acquire_i2c(), ThermocoupleType::K, FilterCoefficient::Maximum), 4),
-            thermo5: to_opt(MCP96X::new(bus_manager.acquire_i2c(), ThermocoupleType::K, FilterCoefficient::Maximum), 5),
-            thermo6: to_opt(MCP96X::new(bus_manager.acquire_i2c(), ThermocoupleType::K, FilterCoefficient::Maximum), 6),
+            thermo1: to_opt(
+                MCP96X::new(
+                    bus_manager.acquire_i2c(),
+                    ThermocoupleType::K,
+                    FilterCoefficient::Maximum,
+                ),
+                1,
+            ),
+            thermo2: to_opt(
+                MCP96X::new(
+                    bus_manager.acquire_i2c(),
+                    ThermocoupleType::K,
+                    FilterCoefficient::Maximum,
+                ),
+                2,
+            ),
+            thermo3: to_opt(
+                MCP96X::new(
+                    bus_manager.acquire_i2c(),
+                    ThermocoupleType::K,
+                    FilterCoefficient::Maximum,
+                ),
+                3,
+            ),
+            thermo4: to_opt(
+                MCP96X::new(
+                    bus_manager.acquire_i2c(),
+                    ThermocoupleType::K,
+                    FilterCoefficient::Maximum,
+                ),
+                4,
+            ),
+            thermo5: to_opt(
+                MCP96X::new(
+                    bus_manager.acquire_i2c(),
+                    ThermocoupleType::K,
+                    FilterCoefficient::Maximum,
+                ),
+                5,
+            ),
+            thermo6: to_opt(
+                MCP96X::new(
+                    bus_manager.acquire_i2c(),
+                    ThermocoupleType::K,
+                    FilterCoefficient::Maximum,
+                ),
+                6,
+            ),
         };
 
         let can_rx_pin = gpioa.pa11.into_floating_input(&mut gpioa.crh);
@@ -199,7 +259,10 @@ mod app {
             .leave_disabled();
 
         // Only recieve frames intended for the sensor board.
-        can.modify_filters().enable_bank(0, Mask32::frames_with_std_id(SENSOR_BOARD_ID, StandardId::MAX));
+        can.modify_filters().enable_bank(
+            0,
+            Mask32::frames_with_std_id(SENSOR_BOARD_ID, StandardId::MAX),
+        );
 
         // Sync to the bus and start normal operation.
         can.enable_interrupts(
@@ -224,6 +287,7 @@ mod app {
         (
             Shared {
                 can_tx_queue: Queue::new(),
+                battery_millivolts: None,
                 sensor_data: Default::default(),
             },
             Local {
@@ -232,7 +296,7 @@ mod app {
 
                 adc1,
                 analog_pins,
-                
+
                 thermocouples,
             },
             init::Monotonics(mono),
@@ -257,11 +321,14 @@ mod app {
         read_thermocouples::spawn().expect("failed to spawn task `poll_thermocouples`");
     }
 
-    #[task(local = [adc1, analog_pins], shared = [sensor_data])]
+    #[task(local = [adc1, analog_pins], shared = [sensor_data, battery_millivolts])]
     fn read_adc1(cx: read_adc1::Context) {
         // defmt::info!("read_adc1");
         let read_adc1::LocalResources { adc1, analog_pins } = cx.local;
-        let mut sensor_data = cx.shared.sensor_data;
+        let read_adc1::SharedResources {
+            sensor_data,
+            battery_millivolts,
+        } = cx.shared;
 
         let s = |res: nb::Result<u16, ()>| match res {
             Ok(v) => SensorReading::new(v),
@@ -292,7 +359,12 @@ mod app {
         let pt1_p = s(adc1.read(&mut analog_pins.pressure8));
         let pt2_p = s(adc1.read(&mut analog_pins.pressure9));
 
-        sensor_data.lock(|sensor_data| {
+        let bat_voltage = adc1
+            .read(&mut analog_pins.battery)
+            .ok()
+            .map(|s: u16| ((s as u32) * 1200 / (adc1.read_vref() as u32)).try_into().expect("calculation for battery voltage was wrong"));
+
+        (sensor_data, battery_millivolts).lock(|sensor_data, bat| {
             sensor_data.fm_f = fm_f;
             sensor_data.fm_o = fm_o;
 
@@ -308,6 +380,8 @@ mod app {
             sensor_data.pt4_o = pt4_o;
             sensor_data.pt1_p = pt1_p;
             sensor_data.pt2_p = pt2_p;
+
+            *bat = bat_voltage;
         });
     }
 
@@ -317,10 +391,12 @@ mod app {
         let tc = cx.local.thermocouples;
         let mut sensor_data = cx.shared.sensor_data;
 
-        let c = |opt: Option<_>| opt.map(|res| match res {
-            Ok(v) => Temperature::new(v),
-            Err(_) => Temperature::new_error(SensorError::Unknown),
-        });
+        let c = |opt: Option<_>| {
+            opt.map(|res| match res {
+                Ok(v) => Temperature::new(v),
+                Err(_) => Temperature::new_error(SensorError::Unknown),
+            })
+        };
 
         // This is the source of truth for these sensor to pin mappings.
 
@@ -379,18 +455,24 @@ mod app {
         rtic::pend(Interrupt::USB_HP_CAN_TX);
     }
 
-    #[task(shared = [can_tx_queue, sensor_data])]
+    #[task(shared = [can_tx_queue, sensor_data, battery_millivolts])]
     fn send_sensor_data(cx: send_sensor_data::Context) {
         send_sensor_data::spawn_after(Duration::secs(2)).unwrap(); // temporary
 
-        let send_sensor_data::SharedResources { mut can_tx_queue, mut sensor_data } = cx.shared;
+        let send_sensor_data::SharedResources {
+            mut can_tx_queue,
+            sensor_data,
+            battery_millivolts,
+        } = cx.shared;
 
-        let sensor_data = sensor_data.lock(|data| data.clone());
+        let (sensor_data, battery_millivolts) =
+            (sensor_data, battery_millivolts).lock(|data, bat| (data.clone(), *bat));
 
         defmt::info!("sensor_data: {:#?}", defmt::Debug2Format(&sensor_data));
 
         let header = pi_sensor::ResponseHeader {
             doing_good: true, // temporary
+            battery_millivolts,
         };
 
         let mut buf = [0; pi_sensor::ResponseHeader::POSTCARD_MAX_SIZE];
@@ -426,9 +508,7 @@ mod app {
         ]
     )]
     fn can_rx0(cx: can_rx0::Context) {
-        let can_rx0::LocalResources {
-            can_rx,
-        } = cx.local;
+        let can_rx0::LocalResources { can_rx } = cx.local;
 
         loop {
             match can_rx.receive() {
@@ -441,14 +521,17 @@ mod app {
                         continue; // go to next loop iteration
                     };
 
-                    let request = if let Ok(r) = postcard::from_bytes(data) { r } else {
+                    let request = if let Ok(r) = postcard::from_bytes(data) {
+                        r
+                    } else {
                         defmt::error!("failed to deserialize frame");
                         continue;
                     };
 
                     match request {
                         pi_sensor::Request::GetSensorData => {
-                            send_sensor_data::spawn().expect("failed to spawn task `send_sensor_data`");
+                            send_sensor_data::spawn()
+                                .expect("failed to spawn task `send_sensor_data`");
                         }
                         pi_sensor::Request::Reset => {
                             defmt::info!("resetting");

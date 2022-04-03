@@ -1,0 +1,39 @@
+[package]
+name = "pi"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# thread-priority = "0.7.0"
+flume = "0.10.11"
+core_affinity = "0.5.10"
+tungstenite = "0.17.1"
+tokio-tungstenite = "0.17.1"
+futures-util = "0.3.21"
+
+[dependencies.tokio]
+version = "1.0"
+default-features = false
+features = ["io-util", "rt", "time"]
+
+[dependencies.postcard]
+version = "0.7.3"
+features = ["use-std"]
+
+[dependencies.shared]
+path = "../shared"
+
+# [dependencies.websocket]
+# version = "0.26.3"
+# default-features = false
+# features = ["sync"]
+
+[dependencies.socketcan]
+git = "https://github.com/lachlansneff/socketcan-rs.git"
+rev = "0bba989232d9b3fba579457f41fdb48374b457f2" # temporary
+
+[dependencies.thread-priority]
+git = "https://github.com/lachlansneff/thread-priority.git"
+branch = "deadline-duration"

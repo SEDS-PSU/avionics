@@ -33,9 +33,9 @@
         "other_text_thickness": 0.15,
         "other_text_upright": false,
         "pads": {
-          "drill": 0.762,
-          "height": 1.524,
-          "width": 1.524
+          "drill": 3.0,
+          "height": 3.2,
+          "width": 3.2
         },
         "silk_line_width": 0.15,
         "silk_text_italic": false,
@@ -45,7 +45,7 @@
         "silk_text_upright": false,
         "zones": {
           "45_degree_only": false,
-          "min_clearance": 0.39999999999999997
+          "min_clearance": 0.0
         }
       },
       "diff_pair_dimensions": [
@@ -119,7 +119,8 @@
         "use_height_for_length_calcs": true
       },
       "track_widths": [
-        0.0
+        0.0,
+        0.3
       ],
       "via_dimensions": [
         {
@@ -413,7 +414,16 @@
     "meta": {
       "version": 1
     },
-    "net_format_name": "",
+    "net_format_name": "KiCad",
+    "ngspice": {
+      "fix_include_paths": true,
+      "fix_passive_vals": false,
+      "meta": {
+        "version": 0
+      },
+      "model_mode": 0,
+      "workbook_filename": ""
+    },
     "page_layout_descr_file": "",
     "plot_directory": "",
     "spice_adjust_passive_values": false,
@@ -431,12 +441,8 @@
       "Thermocouples"
     ],
     [
-      "2b0f7954-3f7d-4876-883a-efca232b0120",
-      "SPARE_gen_purp_amp"
-    ],
-    [
       "7f86c03b-4788-4ee3-8e3a-c7f88ba5f5f3",
-      "Load Cell"
+      "Load Cell 1"
     ],
     [
       "0723ec3f-6079-4e38-948e-50d06633977c",
@@ -449,6 +455,10 @@
     [
       "2a3b537d-343e-4e71-aa96-9320e2f8697e",
       "Pressure and Flow"
+    ],
+    [
+      "59db9306-5f79-4444-a38c-9189b45c059f",
+      "Load Cell 2"
     ]
   ],
   "text_variables": {}
