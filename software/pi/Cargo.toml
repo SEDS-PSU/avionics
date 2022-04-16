@@ -12,6 +12,7 @@ core_affinity = "0.5.10"
 tungstenite = "0.17.1"
 tokio-tungstenite = "0.17.1"
 futures-util = "0.3.21"
+thread-priority = "0.8.2"
 
 [dependencies.tokio]
 version = "1.0"
@@ -33,7 +34,3 @@ path = "../shared"
 [dependencies.socketcan]
 git = "https://github.com/lachlansneff/socketcan-rs.git"
 rev = "0bba989232d9b3fba579457f41fdb48374b457f2" # temporary
-
-[dependencies.thread-priority]
-git = "https://github.com/lachlansneff/thread-priority.git"
-branch = "deadline-duration"
