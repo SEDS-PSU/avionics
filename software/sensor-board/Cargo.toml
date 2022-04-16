@@ -1,7 +1,7 @@
 [package]
 # TODO(1) fix `authors` and `name` if you didn't use `cargo-generate`
-authors = ["Lachlan Sneff <lachlan.sneff@gmail.com>"]
-name = "output-board"
+authors = ["Lachlan Sneff <lachlan@charted.space>"]
+name = "sensor-board"
 edition = "2021"
 version = "0.1.0"
 

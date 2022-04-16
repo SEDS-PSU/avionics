@@ -37,7 +37,7 @@ mod app {
     use postcard::MaxSize;
     use shared::pi_sensor::{self, Force, SensorError, SensorReading, Temperature};
     use stm32f1xx_hal::{
-        adc::Adc,
+        adc::{Adc, SampleTime},
         can::Can,
         gpio::{
             gpioa::{PA0, PA1, PA2, PA3, PA4, PA5, PA6, PA7},
@@ -130,7 +130,8 @@ mod app {
         let can = Can::new(cx.device.CAN1);
 
         // Set up the ADC.
-        let adc1 = Adc::adc1(cx.device.ADC1, clocks.clone());
+        let mut adc1 = Adc::adc1(cx.device.ADC1, clocks.clone());
+        adc1.set_sample_time(SampleTime::T_239);
 
         // Pins
         let mut afio = cx.device.AFIO.constrain();
