@@ -105,7 +105,8 @@ impl<E: fmt::Debug, I2C: i2c::WriteRead<u8, Error = E> + i2c::Write<u8, Error = 
 
         defmt::info!("junction read: {:#?}", buf);
 
-        let temp = -i16::from_be_bytes(buf);
+        // let temp = i16::from_be_bytes(buf);
+        let temp = ((buf[1] << 8) as u16 | buf[0] as u16) as i16 / 16;
 
         // Reset the update flag.
         let mut status = 0;
