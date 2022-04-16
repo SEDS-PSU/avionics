@@ -704,7 +704,7 @@
     (property "Reference" "R106" (id 0) (at 144.78 69.8499 0)
       (effects (font (size 1.27 1.27)) (justify left))
     )
-    (property "Value" "150" (id 1) (at 144.78 72.3899 0)
+    (property "Value" "100" (id 1) (at 144.78 72.3899 0)
       (effects (font (size 1.27 1.27)) (justify left))
     )
     (property "Footprint" "Resistor_SMD:R_0603_1608Metric" (id 2) (at 140.462 71.12 90)
