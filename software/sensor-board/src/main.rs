@@ -122,7 +122,7 @@ mod app {
             .use_hse(36.mhz())
             // do we need other stuff here?
             .sysclk(FREQUENCY.hz())
-            // .pclk1(16.mhz())
+            .pclk1(16.mhz())
             .freeze(&mut flash.acr);
 
         // Set up CAN bus.
