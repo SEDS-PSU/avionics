@@ -452,7 +452,7 @@ mod app {
     }
 
     fn enqueue_frame(queue: &mut Queue<Frame, 16>, frame: Frame) {
-        queue.enqueue(frame).expect("the frame queue is full");
+        // queue.enqueue(frame).expect("the frame queue is full");
         rtic::pend(Interrupt::USB_HP_CAN_TX);
     }
 
