@@ -105,7 +105,7 @@ impl<E: fmt::Debug, I2C: i2c::WriteRead<u8, Error = E> + i2c::Write<u8, Error = 
 
         defmt::info!("junction read: {:#?}", buf);
 
-        let temp_0625 = i16::from_be_bytes(buf); // each LSB is 0.0625 degrees C
+        let temp = -i16::from_be_bytes(buf);
 
         // Reset the update flag.
         let mut status = 0;
@@ -114,7 +114,7 @@ impl<E: fmt::Debug, I2C: i2c::WriteRead<u8, Error = E> + i2c::Write<u8, Error = 
         status &= !(1 << 6); // clear the update flag
         self.i2c.write(ADDRESS, &[reg::STATUS, status])?;
 
-        Ok(temp_0625 / 16)
+        Ok(temp)
     }
 
     // /// Read this cold-junction compensated and error-corrected thermocouple temperature
