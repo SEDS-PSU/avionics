@@ -9,7 +9,7 @@ use stm32f1xx_hal as _; // memory layout
 
 mod util;
 
-const FREQUENCY: u32 = 25_000_000; // Hz
+const FREQUENCY: u32 = 36_000_000; // Hz
 
 type Instant = fugit::Instant<u32, 1, FREQUENCY>;
 type Duration = fugit::Duration<u32, 1, FREQUENCY>;
@@ -126,7 +126,7 @@ mod app {
 
         let clocks = rcc
             .cfgr
-            .use_hse(25.mhz())
+            .use_hse(36.mhz())
             // do we need other stuff here?
             .sysclk(FREQUENCY.hz())
             .pclk1(16.mhz())

@@ -9,7 +9,7 @@ use stm32f1xx_hal as _; // memory layout
 
 mod util;
 
-const FREQUENCY: u32 = 24_000_000; // Hz
+const FREQUENCY: u32 = 36_000_000; // Hz
 
 type Duration = fugit::Duration<u32, 1, FREQUENCY>;
 
@@ -119,10 +119,10 @@ mod app {
 
         let clocks = rcc
             .cfgr
-            // .use_hse(25.mhz())
+            .use_hse(36.mhz())
             // do we need other stuff here?
             .sysclk(FREQUENCY.hz())
-            .pclk1(16.mhz())
+            // .pclk1(16.mhz())
             .freeze(&mut flash.acr);
 
         // Set up CAN bus.
@@ -400,12 +400,12 @@ mod app {
 
         // This is the source of truth for these sensor to pin mappings.
 
-        let t1 = c(tc.thermo1.as_mut().map(|t1| t1.read_raw_and_convert()));
-        let t2 = c(tc.thermo2.as_mut().map(|t2| t2.read_raw_and_convert()));
-        let t3 = c(tc.thermo3.as_mut().map(|t3| t3.read_raw_and_convert()));
-        let t4 = c(tc.thermo4.as_mut().map(|t4| t4.read_raw_and_convert()));
-        let t5 = c(tc.thermo5.as_mut().map(|t5| t5.read_raw_and_convert()));
-        let t6 = c(tc.thermo6.as_mut().map(|t6| t6.read_raw_and_convert()));
+        let t1 = c(tc.thermo1.as_mut().map(|t1| t1.read()));
+        let t2 = c(tc.thermo2.as_mut().map(|t2| t2.read()));
+        let t3 = c(tc.thermo3.as_mut().map(|t3| t3.read()));
+        let t4 = c(tc.thermo4.as_mut().map(|t4| t4.read()));
+        let t5 = c(tc.thermo5.as_mut().map(|t5| t5.read()));
+        let t6 = c(tc.thermo6.as_mut().map(|t6| t6.read()));
 
         sensor_data.lock(|s| {
             s.tc1_e = t1.unwrap_or(Temperature::new_error(SensorError::NoData));
@@ -451,7 +451,7 @@ mod app {
     }
 
     fn enqueue_frame(queue: &mut Queue<Frame, 16>, frame: Frame) {
-        // queue.enqueue(frame).expect("the frame queue is full");
+        queue.enqueue(frame).expect("the frame queue is full");
         rtic::pend(Interrupt::USB_HP_CAN_TX);
     }
 
