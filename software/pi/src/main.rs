@@ -4,7 +4,7 @@ use std::{error::Error, time::Duration, thread};
 
 // use ground_station::GroundStation;
 use socketcan::{CanSocket, CanFrame};
-use shared::pi_sensor;
+use shared::{pi_sensor, pi_output};
 use thread_priority::{ThreadPriority, ThreadSchedulePolicy, RealtimeThreadSchedulePolicy};
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -21,12 +21,15 @@ fn main() -> Result<(), Box<dyn Error>> {
     ).unwrap();
 
     let can = CanSocket::open("can0")?;
-    can.set_read_timeout(Duration::from_micros(1000))?;
-    can.set_write_timeout(Duration::from_micros(1000))?;
+    can.set_read_timeout(Duration::from_micros(10_000))?;
+    can.set_write_timeout(Duration::from_micros(10_0000))?;
 
-    let (header, data) = request_sensor_data(&can, pi_sensor::Request::GetSensorData).unwrap();
-    println!("{:#?}", header);
-    println!("{:#?}", data);
+    // let (header, data) = request_sensor_data(&can).unwrap();
+    // println!("{:#?}", header);
+    // println!("{:#?}", data);
+
+    let status = request_output_status(&can)?;
+    println!("{:#?}", status);
 
     loop {
         // TODO: Do stuff with CAN bus, etc
@@ -34,6 +37,34 @@ fn main() -> Result<(), Box<dyn Error>> {
         // Yield until the next period.
         thread::yield_now();
     }
+}
+
+fn output_request_to_frame(
+    request: pi_output::Request,
+) -> Result<CanFrame, Box<dyn Error>> {
+    let data  = postcard::to_stdvec(&request)?;
+
+    let frame = CanFrame::new(
+        shared::OUTPUT_BOARD_ID as _,
+        &data,
+        false,
+        false,
+    )?;
+
+    Ok(frame)
+}
+
+fn request_output_status(
+    can: &CanSocket,
+) -> Result<pi_output::Status, Box<dyn Error>> {
+    let frame = output_request_to_frame(pi_output::Request::GetStatus)?;
+
+    can.write_frame(&frame)?;
+
+    let status_frame = can.read_frame()?;
+    let status: pi_output::Status = postcard::from_bytes(&status_frame.data())?;
+
+    Ok(status)
 }
 
 fn sensor_request_to_frame(request: pi_sensor::Request) -> Result<CanFrame, Box<dyn Error>> {
@@ -51,9 +82,8 @@ fn sensor_request_to_frame(request: pi_sensor::Request) -> Result<CanFrame, Box<
 
 fn request_sensor_data(
     can: &CanSocket,
-    request: pi_sensor::Request,
 ) -> Result<(pi_sensor::ResponseHeader, pi_sensor::AllSensors), Box<dyn Error>> {
-    let frame = sensor_request_to_frame(request)?;
+    let frame = sensor_request_to_frame(pi_sensor::Request::GetSensorData)?;
 
     can.write_frame(&frame)?;
 

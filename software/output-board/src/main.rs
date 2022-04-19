@@ -21,20 +21,22 @@ const RASPI_ID: bxcan::StandardId = if let Some(id) = bxcan::StandardId::new(sha
 } else {
     panic!("RASPI_ID is not a valid standard CAN ID");
 };
-const OUTPUT_BOARD_ID: bxcan::StandardId = if let Some(id) = bxcan::StandardId::new(shared::OUTPUT_BOARD_ID) {
-    id
-} else {
-    panic!("OUTPUT_ID is not a valid standard CAN ID");
-};
+const OUTPUT_BOARD_ID: bxcan::StandardId =
+    if let Some(id) = bxcan::StandardId::new(shared::OUTPUT_BOARD_ID) {
+        id
+    } else {
+        panic!("OUTPUT_ID is not a valid standard CAN ID");
+    };
 
 #[rtic::app(device = stm32f1xx_hal::pac, dispatchers = [EXTI0])]
 mod app {
     use core::mem;
 
-    use crate::{Duration, OUTPUT_BOARD_ID, FREQUENCY};
-    use bxcan::{filter::Mask32, Frame, Interrupts, Rx, Tx, StandardId};
+    use crate::{Duration, FREQUENCY, OUTPUT_BOARD_ID};
+    use bxcan::{filter::Mask32, Frame, Interrupts, Rx, StandardId, Tx};
     use dwt_systick_monotonic::DwtSystick;
     use heapless::{spsc::Queue, Deque};
+    use postcard::MaxSize;
     use shared::{pi_output, PackedValves, ThreeWay, TwoWay, Valves};
     use stm32f1xx_hal::{
         can::Can,
@@ -44,9 +46,9 @@ mod app {
             Edge, ExtiPin, Input, Output, PinState, PullDown, PullUp, PushPull,
         },
         pac::{Interrupt, CAN1},
+        rcc::{self, HPre, PPre},
         prelude::*,
     };
-    use postcard::MaxSize;
 
     use crate::{Instant, COMMAND_TIMEOUT, RASPI_ID};
 
@@ -124,13 +126,23 @@ mod app {
         let rcc = cx.device.RCC.constrain();
         let mut exti = cx.device.EXTI;
 
-        let clocks = rcc
-            .cfgr
-            .use_hse(36.mhz())
-            // do we need other stuff here?
-            .sysclk(FREQUENCY.hz())
-            .pclk1(16.mhz())
-            .freeze(&mut flash.acr);
+        // let clocks = rcc
+        //     .cfgr
+        //     // .use_hse(36.mhz())
+        //     // do we need other stuff here?
+        //     .sysclk(FREQUENCY.hz())
+        //     .pclk1(16.mhz())
+        //     .freeze(&mut flash.acr);
+
+        let clock_cfg = stm32f1xx_hal::rcc::Config {
+            hse: None, // We will need this
+            pllmul: Some(9),
+            hpre: HPre::DIV1,
+            ppre1: PPre::DIV4,
+            ..Default::default()
+        };
+
+        let clocks = rcc.cfgr.freeze_with_config(clock_cfg, &mut flash.acr);
 
         // Set up CAN bus.
         // Based on https://github.com/stm32-rs/stm32f1xx-hal/blob/master/examples/can-rtic.rs.
@@ -176,14 +188,15 @@ mod app {
 
         can.assign_pins((can_tx_pin, can_rx_pin), &mut afio.mapr);
 
-        // APB1 (PCLK1): 16MHz, Bit rate: 1000kBit/s, Sample Point 87.5%
+        // APB1 (PCLK1): 9MHz, Bit rate: 500kBit/s, Sample Point 87.5%
         // Value was calculated with http://www.bittiming.can-wiki.info/
         let mut can = bxcan::Can::builder(can)
-            .set_bit_timing(0x001c0000)
+            .set_bit_timing(0x001e0000)
             .leave_disabled();
 
         // Only recieve frames intended for the output board.
-        can.modify_filters().enable_bank(0, Mask32::frames_with_std_id(OUTPUT_BOARD_ID, StandardId::MAX));
+        // can.modify_filters().enable_bank(0, Mask32::frames_with_std_id(OUTPUT_BOARD_ID, StandardId::MAX));
+        can.modify_filters().enable_bank(0, Mask32::accept_all());
 
         // Sync to the bus and start normal operation.
         can.enable_interrupts(
@@ -208,23 +221,27 @@ mod app {
                 states: Valves {
                     fc_fp: TwoWay::Closed,
                     ..Default::default()
-                }.into(),
-                wait: pi_output::Wait::WaitMs(2000.try_into().unwrap())
+                }
+                .into(),
+                wait: pi_output::Wait::WaitMs(2000.try_into().unwrap()),
             },
             pi_output::Command::SetValves {
                 states: Valves {
                     fc_fp: TwoWay::Open,
                     ..Default::default()
-                }.into(),
+                }
+                .into(),
                 wait: pi_output::Wait::Forever,
             },
         ];
-        
+
         for cmd in mock_commands {
             cx.local.command_list.push_back(cmd).unwrap();
         }
 
-        execute_commands::spawn().unwrap();
+        // execute_commands::spawn().unwrap();
+
+        send_status::spawn().unwrap();
 
         // Setup the monotonic timer
         (
@@ -236,7 +253,13 @@ mod app {
                 arming_switch,
                 ignition_detection,
 
-                commands: (CommandState::Executing { handle: None, ignition_delay: None }, cx.local.command_list),
+                commands: (
+                    CommandState::Executing {
+                        handle: None,
+                        ignition_delay: None,
+                    },
+                    cx.local.command_list,
+                ),
             },
             Local {
                 can_tx,
@@ -308,7 +331,6 @@ mod app {
         igniter_pin.set_high();
     }
 
-
     /// This is used to test all of the valves
     #[task(local = [valve_toggle], shared = [&arming_switch])]
     fn oscillate_valves(cx: oscillate_valves::Context) {
@@ -338,12 +360,12 @@ mod app {
             fo_op: two_way_state,
             fc1_o: two_way_state,
             fc2_o: two_way_state,
-        }.into();
+        }
+        .into();
 
         set_valves::spawn(state).unwrap();
 
-
-        defmt::info!("Is Armed: {}",cx.shared.arming_switch.is_high());
+        defmt::info!("Is Armed: {}", cx.shared.arming_switch.is_high());
     }
 
     #[task(shared = [valve_states], local = [actuation_pins])]
@@ -494,14 +516,10 @@ mod app {
         commands_count: &mut u8,
     ) -> Result<(), CanRxError> {
         if let Some(timeout_begin) = *commands_start {
-            if monotonics::now() - timeout_begin < COMMAND_TIMEOUT
-                && *commands_count > 0
-            {
+            if monotonics::now() - timeout_begin < COMMAND_TIMEOUT && *commands_count > 0 {
                 if let CommandState::Loading = command_state {
                     // We're in the wrong state.
-                    defmt::error!(
-                        "attempted to load commands while executing commands"
-                    );
+                    defmt::error!("attempted to load commands while executing commands");
                     return Err(CanRxError::WrongState);
                 }
 
@@ -516,10 +534,13 @@ mod app {
                 if *commands_count == 0 {
                     // Start executing the commands.
                     execute_commands::spawn().expect("failed to spawn `execute_commands`");
-                    *command_state = CommandState::Executing { handle: None, ignition_delay: None };
+                    *command_state = CommandState::Executing {
+                        handle: None,
+                        ignition_delay: None,
+                    };
                 }
 
-                return Ok(())
+                return Ok(());
             } else {
                 // We timed out, so let's assume this frame is a request.
                 *commands_start = None;
@@ -536,8 +557,7 @@ mod app {
             pi_output::Request::SetValvesImmediately(new_states) => {
                 defmt::info!("setting valve states");
 
-                set_valves::spawn(new_states)
-                    .expect("failed to spawn the `set_valves` task");
+                set_valves::spawn(new_states).expect("failed to spawn the `set_valves` task");
 
                 // Kill the currently executing list of commands.
                 if let CommandState::Executing {
@@ -594,6 +614,8 @@ mod app {
             commands_count,
         } = cx.local;
 
+        defmt::info!("can_rx0");
+
         loop {
             match can_rx.receive() {
                 Ok(frame) => {
@@ -620,7 +642,6 @@ mod app {
                             defmt::error!("received a command in the wrong state");
                         }
                     }
-                    
                 }
                 Err(nb::Error::WouldBlock) => break,
                 Err(nb::Error::Other(_)) => {} // Ignore overrun errors.
