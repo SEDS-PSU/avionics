@@ -46,7 +46,7 @@ mod app {
             Edge, ExtiPin, Input, Output, PinState, PullDown, PullUp, PushPull,
         },
         pac::{Interrupt, CAN1},
-        rcc::{self, HPre, PPre},
+        // rcc::{self, HPre, PPre},
         prelude::*,
     };
 
@@ -126,23 +126,23 @@ mod app {
         let rcc = cx.device.RCC.constrain();
         let mut exti = cx.device.EXTI;
 
-        // let clocks = rcc
-        //     .cfgr
-        //     // .use_hse(36.mhz())
-        //     // do we need other stuff here?
-        //     .sysclk(FREQUENCY.hz())
-        //     .pclk1(16.mhz())
-        //     .freeze(&mut flash.acr);
+        let clocks = rcc
+            .cfgr
+            .use_hse(36.mhz())
+            // do we need other stuff here?
+            .sysclk(FREQUENCY.hz())
+            .pclk1(9.mhz())
+            .freeze(&mut flash.acr);
 
-        let clock_cfg = stm32f1xx_hal::rcc::Config {
-            hse: None, // We will need this
-            pllmul: Some(9),
-            hpre: HPre::DIV1,
-            ppre1: PPre::DIV4,
-            ..Default::default()
-        };
+        // let clock_cfg = stm32f1xx_hal::rcc::Config {
+        //     hse: None, // We will need this
+        //     pllmul: Some(9),
+        //     hpre: HPre::DIV1,
+        //     ppre1: PPre::DIV4,
+        //     ..Default::default()
+        // };
 
-        let clocks = rcc.cfgr.freeze_with_config(clock_cfg, &mut flash.acr);
+        // let clocks = rcc.cfgr.freeze_with_config(clock_cfg, &mut flash.acr);
 
         // Set up CAN bus.
         // Based on https://github.com/stm32-rs/stm32f1xx-hal/blob/master/examples/can-rtic.rs.
@@ -195,8 +195,7 @@ mod app {
             .leave_disabled();
 
         // Only recieve frames intended for the output board.
-        // can.modify_filters().enable_bank(0, Mask32::frames_with_std_id(OUTPUT_BOARD_ID, StandardId::MAX));
-        can.modify_filters().enable_bank(0, Mask32::accept_all());
+        can.modify_filters().enable_bank(0, Mask32::frames_with_std_id(OUTPUT_BOARD_ID, StandardId::MAX));
 
         // Sync to the bus and start normal operation.
         can.enable_interrupts(
@@ -241,7 +240,7 @@ mod app {
 
         // execute_commands::spawn().unwrap();
 
-        send_status::spawn().unwrap();
+        // send_status::spawn().unwrap();
 
         // Setup the monotonic timer
         (
@@ -613,8 +612,6 @@ mod app {
             commands_start,
             commands_count,
         } = cx.local;
-
-        defmt::info!("can_rx0");
 
         loop {
             match can_rx.receive() {

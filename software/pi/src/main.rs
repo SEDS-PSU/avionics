@@ -21,22 +21,24 @@ fn main() -> Result<(), Box<dyn Error>> {
     ).unwrap();
 
     let can = CanSocket::open("can0")?;
-    can.set_read_timeout(Duration::from_micros(10_000))?;
-    can.set_write_timeout(Duration::from_micros(10_0000))?;
+    can.set_read_timeout(Duration::from_micros(1_000))?;
+    can.set_write_timeout(Duration::from_micros(1_0000))?;
 
     // let (header, data) = request_sensor_data(&can).unwrap();
     // println!("{:#?}", header);
     // println!("{:#?}", data);
 
     let status = request_output_status(&can)?;
-    println!("{:#?}", status);
+    println!("output board status: {:#?}", status);
 
-    loop {
-        // TODO: Do stuff with CAN bus, etc
+    // loop {
+    //     // TODO: Do stuff with CAN bus, etc
 
-        // Yield until the next period.
-        thread::yield_now();
-    }
+    //     // Yield until the next period.
+    //     thread::yield_now();
+    // }
+
+    Ok(())
 }
 
 fn output_request_to_frame(
