@@ -11,10 +11,8 @@ mod util;
 
 const FREQUENCY: u32 = 36_000_000; // Hz
 
-type Instant = fugit::Instant<u32, 1, FREQUENCY>;
+// type Instant = fugit::Instant<u32, 1, FREQUENCY>;
 type Duration = fugit::Duration<u32, 1, FREQUENCY>;
-
-const COMMAND_TIMEOUT: Duration = Duration::millis(5);
 
 const RASPI_ID: bxcan::StandardId = if let Some(id) = bxcan::StandardId::new(shared::RASPI_ID) {
     id
@@ -30,7 +28,7 @@ const OUTPUT_BOARD_ID: bxcan::StandardId =
 
 #[rtic::app(device = stm32f1xx_hal::pac, dispatchers = [EXTI0])]
 mod app {
-    use core::mem;
+    use core::num::NonZeroU8;
 
     use crate::{Duration, FREQUENCY, OUTPUT_BOARD_ID};
     use bxcan::{filter::Mask32, Frame, Interrupts, Rx, StandardId, Tx};
@@ -50,17 +48,19 @@ mod app {
         prelude::*,
     };
 
-    use crate::{Instant, COMMAND_TIMEOUT, RASPI_ID};
+    use crate::RASPI_ID;
 
     // The monotonic scheduler type
     #[monotonic(binds = SysTick, default = true)]
     type Mono = DwtSystick<FREQUENCY /* Hz */>;
 
     pub enum CommandState {
-        Loading,
+        Loading {
+            commands_remaining: NonZeroU8,
+        },
         Executing {
             handle: Option<execute_commands::SpawnHandle>,
-            ignition_delay: Option<u16>,
+            wait_for_ignition: bool,
         },
     }
 
@@ -108,14 +108,10 @@ mod app {
         can_tx: Tx<Can<CAN1>>,
         can_rx: Rx<Can<CAN1>>,
 
-        commands_start: Option<Instant>,
-        commands_count: u8,
-
         actuation_pins: ActuationPins,
+
         /// This is walled-off by the arming mosfet.
         igniter_pin: PB10<Output<PushPull>>,
-
-        valve_toggle: bool,
     }
 
     #[init(local = [command_list: Deque<pi_output::Command, 256> = Deque::new()])]
@@ -133,16 +129,6 @@ mod app {
             .sysclk(FREQUENCY.hz())
             .pclk1(9.mhz())
             .freeze(&mut flash.acr);
-
-        // let clock_cfg = stm32f1xx_hal::rcc::Config {
-        //     hse: None, // We will need this
-        //     pllmul: Some(9),
-        //     hpre: HPre::DIV1,
-        //     ppre1: PPre::DIV4,
-        //     ..Default::default()
-        // };
-
-        // let clocks = rcc.cfgr.freeze_with_config(clock_cfg, &mut flash.acr);
 
         // Set up CAN bus.
         // Based on https://github.com/stm32-rs/stm32f1xx-hal/blob/master/examples/can-rtic.rs.
@@ -181,7 +167,7 @@ mod app {
         // This will trigger on EXTI1.
         ignition_detection.make_interrupt_source(&mut afio);
         ignition_detection.enable_interrupt(&mut exti);
-        ignition_detection.trigger_on_edge(&mut exti, Edge::Rising);
+        ignition_detection.trigger_on_edge(&mut exti, Edge::Falling);
 
         let can_rx_pin = gpioa.pa11.into_floating_input(&mut gpioa.crh);
         let can_tx_pin = gpioa.pa12.into_alternate_push_pull(&mut gpioa.crh);
@@ -212,37 +198,6 @@ mod app {
 
         let mono = DwtSystick::new(&mut dcb, dwt, systick, clocks.sysclk().0);
 
-        // oscillate_valves::spawn().unwrap();                  //Test Valves
-        // ignite::spawn_after(Duration::secs(5)).unwrap();     //Test Igniter
-
-        let mock_commands = [
-            pi_output::Command::SetValves {
-                states: Valves {
-                    fc_fp: TwoWay::Closed,
-                    ..Default::default()
-                }
-                .into(),
-                wait: pi_output::Wait::WaitMs(2000.try_into().unwrap()),
-            },
-            pi_output::Command::SetValves {
-                states: Valves {
-                    fc_fp: TwoWay::Open,
-                    ..Default::default()
-                }
-                .into(),
-                wait: pi_output::Wait::Forever,
-            },
-        ];
-
-        for cmd in mock_commands {
-            cx.local.command_list.push_back(cmd).unwrap();
-        }
-
-        // execute_commands::spawn().unwrap();
-
-        // send_status::spawn().unwrap();
-
-        // Setup the monotonic timer
         (
             Shared {
                 // Initialization of shared resources go here
@@ -255,7 +210,7 @@ mod app {
                 commands: (
                     CommandState::Executing {
                         handle: None,
-                        ignition_delay: None,
+                        wait_for_ignition: false,
                     },
                     cx.local.command_list,
                 ),
@@ -263,11 +218,8 @@ mod app {
             Local {
                 can_tx,
                 can_rx,
-                commands_start: None,
-                commands_count: 0,
                 actuation_pins,
                 igniter_pin,
-                valve_toggle: false,
             },
             init::Monotonics(mono),
         )
@@ -322,49 +274,19 @@ mod app {
     }
 
     #[task(local = [igniter_pin])]
-    fn ignite(cx: ignite::Context) {
-        defmt::info!("igniting!");
-
+    fn igniter(cx: igniter::Context, igniter: pi_output::Igniter) {
         let igniter_pin = cx.local.igniter_pin;
 
-        igniter_pin.set_high();
-    }
-
-    /// This is used to test all of the valves
-    #[task(local = [valve_toggle], shared = [&arming_switch])]
-    fn oscillate_valves(cx: oscillate_valves::Context) {
-        oscillate_valves::spawn_after(Duration::secs(1)).unwrap();
-
-        let toggle = cx.local.valve_toggle;
-        *toggle = !*toggle;
-
-        let two_way_state = match *toggle {
-            true => TwoWay::Open,
-            false => TwoWay::Closed,
-        };
-
-        let three_way_state = match *toggle {
-            true => ThreeWay::FuelOxidizer,
-            false => ThreeWay::NitrogenPathway,
-        };
-
-        let state = Valves {
-            fc_fp: two_way_state,
-            fc_op: two_way_state,
-            fo_p: two_way_state,
-            pv_f: three_way_state,
-            fo_fp: two_way_state,
-            fc_p: two_way_state,
-            pv_o: three_way_state,
-            fo_op: two_way_state,
-            fc1_o: two_way_state,
-            fc2_o: two_way_state,
+        match igniter {
+            pi_output::Igniter::Activate => {
+                igniter_pin.set_high();
+            }
+            pi_output::Igniter::Deactivate => {
+                igniter_pin.set_low();
+            }
         }
-        .into();
 
-        set_valves::spawn(state).unwrap();
-
-        defmt::info!("Is Armed: {}", cx.shared.arming_switch.is_high());
+        execute_commands::spawn().unwrap();
     }
 
     #[task(shared = [valve_states], local = [actuation_pins])]
@@ -409,6 +331,8 @@ mod app {
         actuation_pins
             .main_oxidizer_solenoid
             .set_state(b(new_states.pv_o));
+
+        execute_commands::spawn().unwrap();
     }
 
     #[task(shared = [commands])]
@@ -417,43 +341,35 @@ mod app {
             commands: (command_state, command_list),
         } = cx.shared;
 
-        let (old_spawn_handle, ignition_delay) = match command_state {
-            CommandState::Loading => return,
-            CommandState::Executing {
-                handle: maybe_spawn_handle,
-                ignition_delay,
-            } => (maybe_spawn_handle, ignition_delay),
-        };
+        if let CommandState::Loading { .. } = command_state {
+            defmt::warn!("`execute_commands` ran while the system is in the command loading state");
+            return
+        }
 
-        *old_spawn_handle = if let Some(command) = command_list.pop_front() {
+        if let Some(command) = command_list.pop_front() {
+            defmt::info!("Executing command: {:#?}", command);
             match command {
-                pi_output::Command::SetValves { states, wait } => {
-                    defmt::info!("setting valves");
+                pi_output::Command::SetValves(states) => {
                     set_valves::spawn(states).expect("failed to spawn the `set_valves` task");
-                    *ignition_delay = None;
-
-                    if let pi_output::Wait::WaitMs(ms) = wait {
-                        let handle =
-                            execute_commands::spawn_after(Duration::millis(ms.get() as u32))
-                                .expect("failed to spawn `execute_commands` task");
-                        Some(handle)
-                    } else {
-                        None
-                    }
                 }
-                pi_output::Command::Ignite { delay } => {
-                    defmt::info!("Igniting the engine with a delay of {}ms", delay);
-                    *ignition_delay = Some(delay);
-
-                    ignite::spawn().expect("failed to spawn the `ignite` task");
-
-                    None
+                pi_output::Command::Igniter(igniter) => {
+                    igniter::spawn(igniter).expect("failed to spawn the `igniter` task");
+                }
+                pi_output::Command::WaitForIgnitionDetected => {
+                    *command_state = CommandState::Executing {
+                        handle: None,
+                        wait_for_ignition: true,
+                    };
+                }
+                pi_output::Command::Wait(delay) => {
+                    let handle = execute_commands::spawn_after(Duration::millis(delay.get().into())).unwrap();
+                    *command_state = CommandState::Executing {
+                        handle: Some(handle),
+                        wait_for_ignition: false,
+                    };
                 }
             }
-        } else {
-            *ignition_delay = None;
-            None
-        };
+        }
     }
 
     #[task(shared = [can_tx_queue, valve_states, &arming_switch, ignition_detection])]
@@ -498,7 +414,6 @@ mod app {
 
     enum CanRxError {
         Postcard(postcard::Error),
-        WrongState,
     }
 
     impl From<postcard::Error> for CanRxError {
@@ -511,95 +426,65 @@ mod app {
         data: &[u8],
         command_state: &mut CommandState,
         command_list: &mut Deque<pi_output::Command, 256>,
-        commands_start: &mut Option<Instant>,
-        commands_count: &mut u8,
     ) -> Result<(), CanRxError> {
-        if let Some(timeout_begin) = *commands_start {
-            if monotonics::now() - timeout_begin < COMMAND_TIMEOUT && *commands_count > 0 {
-                if let CommandState::Loading = command_state {
-                    // We're in the wrong state.
-                    defmt::error!("attempted to load commands while executing commands");
-                    return Err(CanRxError::WrongState);
-                }
-
-                assert!(*commands_count > 0);
-
+        match command_state {
+            CommandState::Loading { commands_remaining } => {
                 let command = postcard::from_bytes(data)?;
 
-                // This can't overflow, since the length is a max of 255.
                 command_list.push_back(command).unwrap();
-                *commands_count -= 1;
-
-                if *commands_count == 0 {
-                    // Start executing the commands.
+                if let Some(remaining) = NonZeroU8::new(commands_remaining.get() - 1) {
+                    *commands_remaining = remaining;
+                } else {
+                    // No remaining commands to read, start executing them.
                     execute_commands::spawn().expect("failed to spawn `execute_commands`");
                     *command_state = CommandState::Executing {
                         handle: None,
-                        ignition_delay: None,
+                        wait_for_ignition: false,
                     };
                 }
-
-                return Ok(());
-            } else {
-                // We timed out, so let's assume this frame is a request.
-                *commands_start = None;
             }
-        }
+            CommandState::Executing { handle, .. } => {
+                // Assume this frame is a request.
+                let request = postcard::from_bytes(data)?;
 
-        // Assume this frame is a request.
-        let request = postcard::from_bytes(data)?;
+                match request {
+                    pi_output::Request::GetStatus => {
+                        send_status::spawn().expect("failed to spawn the `send_status` task")
+                    }
+                    pi_output::Request::SetValvesImmediately(new_states) => {
+                        defmt::info!("setting valve states");
 
-        match request {
-            pi_output::Request::GetStatus => {
-                send_status::spawn().expect("failed to spawn the `send_status` task")
-            }
-            pi_output::Request::SetValvesImmediately(new_states) => {
-                defmt::info!("setting valve states");
+                        // Cancel the current task, if it exists.
+                        handle.take().map(|handle| handle.cancel());
 
-                set_valves::spawn(new_states).expect("failed to spawn the `set_valves` task");
+                        *command_state = CommandState::Executing { handle: None, wait_for_ignition: false };
+                        command_list.clear();
 
-                // Kill the currently executing list of commands.
-                if let CommandState::Executing {
-                    handle: Some(handle),
-                    ..
-                } = mem::replace(command_state, CommandState::Loading)
-                {
-                    defmt::info!("killing the currently executing command task");
-                    let _ = handle.cancel();
+                        set_valves::spawn(new_states).expect("failed to spawn the `set_valves` task");
+                    }
+                    pi_output::Request::BeginSequence { length } => {
+                        defmt::info!("beginning a sequence of {} commands", length);
+
+                        // Cancel the current task, if it exists.
+                        handle.take().map(|handle| handle.cancel());
+
+                        *command_state = CommandState::Loading { commands_remaining: length };
+                        command_list.clear();
+                    }
+                    pi_output::Request::Reset => {
+                        defmt::info!("resetting");
+                        defmt::flush();
+                        cortex_m::peripheral::SCB::sys_reset()
+                    }
                 }
-                command_list.clear();
-            }
-            pi_output::Request::BeginSequence { length } => {
-                defmt::info!("beginning a sequence of {} commands", length);
-                *commands_start = Some(monotonics::now());
-                *commands_count = length;
-
-                // Kill the currently executing list of commands.
-                if let CommandState::Executing {
-                    handle: Some(handle),
-                    ..
-                } = mem::replace(command_state, CommandState::Loading)
-                {
-                    defmt::info!("killing the currently executing command task");
-                    let _ = handle.cancel();
-                }
-                command_list.clear();
-            }
-            pi_output::Request::Reset => {
-                defmt::info!("resetting");
-                defmt::flush();
-                cortex_m::peripheral::SCB::sys_reset()
-            }
+            },
         }
-
         Ok(())
     }
 
     #[task(binds = USB_LP_CAN_RX0,
         local = [
             can_rx,
-            commands_start,
-            commands_count,
         ],
         shared = [
             commands,
@@ -609,8 +494,6 @@ mod app {
         let (command_state, command_list) = cx.shared.commands;
         let can_rx0::LocalResources {
             can_rx,
-            commands_start,
-            commands_count,
         } = cx.local;
 
         loop {
@@ -628,15 +511,10 @@ mod app {
                         data,
                         command_state,
                         command_list,
-                        commands_start,
-                        commands_count,
                     ) {
                         Ok(_) => (),
                         Err(CanRxError::Postcard(_)) => {
                             defmt::error!("failed to deserialize frame");
-                        }
-                        Err(CanRxError::WrongState) => {
-                            defmt::error!("received a command in the wrong state");
                         }
                     }
                 }
@@ -653,29 +531,24 @@ mod app {
             commands: (command_state, _),
         } = cx.shared;
 
+        defmt::info!("ignition detection triggered");
+
         ignition_detection.lock(|ignition_detection| {
             ignition_detection.clear_interrupt_pending_bit();
 
-            defmt::info!("ignition detection triggered");
-
             match command_state {
                 CommandState::Executing {
-                    handle,
-                    ignition_delay,
+                    handle: None,
+                    wait_for_ignition: true,
                 } => {
-                    if let Some(delay) = *ignition_delay {
-                        assert!(
-                            handle.is_none(),
-                            "There should be no execute command task scheduled"
-                        );
+                    // Now that ignition has been detected, schedule the next command to run.
+                    execute_commands::spawn()
+                        .expect("failed to spawn the `schedule_command` task");
 
-                        // Now that ignition has been detected, schedule the next command to run in `delay` ms.
-                        *handle = Some(
-                            execute_commands::spawn_after(Duration::millis(delay as u32))
-                                .expect("failed to spawn the `schedule_command` task"),
-                        );
-                        *ignition_delay = None;
-                    }
+                    *command_state = CommandState::Executing {
+                        handle: None,
+                        wait_for_ignition: false,
+                    };
                 }
                 _ => {}
             }

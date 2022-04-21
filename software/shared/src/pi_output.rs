@@ -1,6 +1,6 @@
 //! Shared definitions and code for Pi <-> Output Board communication.
 
-use core::num::NonZeroU16;
+use core::num::{NonZeroU16, NonZeroU8};
 
 use serde::{Serialize, Deserialize};
 
@@ -14,7 +14,7 @@ pub enum Request {
     SetValvesImmediately(PackedValves),
     /// The following `length` frames each contain one command ([`Command`]) each.
     BeginSequence {
-        length: u8
+        length: NonZeroU8,
     },
     /// The output board should reset itself.
     Reset,
@@ -22,28 +22,24 @@ pub enum Request {
 
 const _: () = assert!(<Request as postcard::MaxSize>::POSTCARD_MAX_SIZE == 3);
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Deserialize, Serialize, postcard::MaxSize)]
-pub enum Wait {
-    WaitMs(NonZeroU16),
-    Forever,
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Deserialize, Serialize, postcard::MaxSize, defmt::Format)]
+pub enum Igniter {
+    Activate,
+    Deactivate,
 }
 
-const _: () = assert!(<Wait as postcard::MaxSize>::POSTCARD_MAX_SIZE == 3);
+const _: () = assert!(<Igniter as postcard::MaxSize>::POSTCARD_MAX_SIZE == 1);
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Deserialize, Serialize, postcard::MaxSize)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Deserialize, Serialize, postcard::MaxSize, defmt::Format)]
 pub enum Command {
-    SetValves {
-        states: PackedValves,
-        wait: Wait,
-    },
-    Ignite {
-        /// The between ignition and the next command being executed.
-        /// This is in milliseconds.
-        delay: u16,
-    }
+    SetValves(PackedValves),
+    Igniter(Igniter),
+    WaitForIgnitionDetected,
+    /// Milliseconds.
+    Wait(NonZeroU16),
 }
 
-const _: () = assert!(<Command as postcard::MaxSize>::POSTCARD_MAX_SIZE == 6);
+const _: () = assert!(<Command as postcard::MaxSize>::POSTCARD_MAX_SIZE == 3);
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Deserialize, Serialize, postcard::MaxSize)]
 pub struct Status {

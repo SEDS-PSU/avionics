@@ -1,8 +1,8 @@
-use core::mem;
+use core::{mem, fmt};
 
 use serde::{Serialize, Deserialize};
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize, defmt::Format)]
 pub struct Valves {
     pub fc_fp: TwoWay,
     pub fc_op: TwoWay,
@@ -75,13 +75,27 @@ impl From<PackedValves> for Valves {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Deserialize, Serialize, postcard::MaxSize)]
+#[derive(Copy, Clone, PartialEq, Eq, Deserialize, Serialize, postcard::MaxSize)]
 #[repr(transparent)]
 pub struct PackedValves(u16);
 
+impl fmt::Debug for PackedValves {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let v = Valves::from(*self);
+        write!(f, "{:?}", v)
+    }
+}
+
+impl defmt::Format for PackedValves {
+    fn format(&self, f: defmt::Formatter<'_>) {
+        let v = Valves::from(*self);
+        defmt::write!(f, "{:?}", v)
+    }
+}
+
 const _: () = assert!(<PackedValves as postcard::MaxSize>::POSTCARD_MAX_SIZE == 2);
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize, defmt::Format)]
 pub enum TwoWay {
     /// The valve is closed.
     Closed,
@@ -89,7 +103,7 @@ pub enum TwoWay {
     Open,
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize, defmt::Format)]
 pub enum ThreeWay {
     /// The valve is routed from the nitrogen purge tank into the chamber.
     NitrogenPathway,
