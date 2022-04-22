@@ -14,13 +14,13 @@ const FREQUENCY: u32 = 36_000_000; // Hz
 // type Instant = fugit::Instant<u32, 1, FREQUENCY>;
 type Duration = fugit::Duration<u32, 1, FREQUENCY>;
 
-const RASPI_ID: bxcan::StandardId = if let Some(id) = bxcan::StandardId::new(shared::RASPI_ID) {
+const RASPI_ID: bxcan::StandardId = if let Some(id) = bxcan::StandardId::new(shared::Id::Raspi as u16) {
     id
 } else {
     panic!("RASPI_ID is not a valid standard CAN ID");
 };
 const OUTPUT_BOARD_ID: bxcan::StandardId =
-    if let Some(id) = bxcan::StandardId::new(shared::OUTPUT_BOARD_ID) {
+    if let Some(id) = bxcan::StandardId::new(shared::Id::OutputBoard as u16) {
         id
     } else {
         panic!("OUTPUT_ID is not a valid standard CAN ID");
@@ -39,9 +39,9 @@ mod app {
     use stm32f1xx_hal::{
         can::Can,
         gpio::{
-            gpioa::PA1,
             gpiob::{PB0, PB1, PB10, PB11, PB12, PB15, PB2, PB3, PB4, PB5, PB6, PB7},
-            Edge, ExtiPin, Input, Output, PinState, PullDown, PullUp, PushPull,
+            gpiod::PD12,
+            Edge, ExtiPin, Input, Output, PinState, PullDown, PushPull,
         },
         pac::{Interrupt, CAN1},
         // rcc::{self, HPre, PPre},
@@ -77,7 +77,7 @@ mod app {
         // solenoid10: PB9<Output<PushPull>>,
 
         // These are walled-off by the arming mosfet.
-        main_fuel_solenoid: PB12<Output<PushPull>>,
+        main_fuel_solenoid: PB10<Output<PushPull>>,
         main_oxidizer_solenoid: PB11<Output<PushPull>>,
     }
 
@@ -93,7 +93,7 @@ mod app {
         can_tx_queue: Queue<Frame, 4>,
 
         arming_switch: PB15<Input<PullDown>>,
-        ignition_detection: PA1<Input<PullUp>>,
+        ignition_detection: PD12<Input<PullDown>>,
 
         /// The `#[lock_free]` attribute makes sure that access to this
         /// is always deterministic (since only tasks at a single priority
@@ -111,7 +111,7 @@ mod app {
         actuation_pins: ActuationPins,
 
         /// This is walled-off by the arming mosfet.
-        igniter_pin: PB10<Output<PushPull>>,
+        igniter_pin: PB12<Output<PushPull>>,
     }
 
     #[init(local = [command_list: Deque<pi_output::Command, 256> = Deque::new()])]
@@ -138,13 +138,11 @@ mod app {
         let mut afio = cx.device.AFIO.constrain();
         let mut gpioa = cx.device.GPIOA.split();
         let mut gpiob = cx.device.GPIOB.split();
+        let mut gpiod = cx.device.GPIOD.split();
 
         // The pb3 and pb4 pins are used by the JTAG debugger initially.
         // We need to disable the JTAG peripheral to use them.
         let (_, pb3, pb4) = afio.mapr.disable_jtag(gpioa.pa15, gpiob.pb3, gpiob.pb4);
-
-        let arming_switch = gpiob.pb15.into_pull_down_input(&mut gpiob.crh);
-        let mut ignition_detection = gpioa.pa1.into_pull_up_input(&mut gpioa.crl);
 
         let actuation_pins = ActuationPins {
             solenoid1: gpiob.pb1.into_push_pull_output(&mut gpiob.crl),
@@ -157,11 +155,14 @@ mod app {
             solenoid8: gpiob.pb0.into_push_pull_output(&mut gpiob.crl),
             // solenoid9: gpiob.pb8.into_push_pull_output(&mut gpiob.crh),
             // solenoid10: gpiob.pb9.into_push_pull_output(&mut gpiob.crh),
-            main_fuel_solenoid: gpiob.pb12.into_push_pull_output(&mut gpiob.crh),
+            main_fuel_solenoid: gpiob.pb10.into_push_pull_output(&mut gpiob.crh),
             main_oxidizer_solenoid: gpiob.pb11.into_push_pull_output(&mut gpiob.crh),
         };
 
-        let igniter_pin = gpiob.pb10.into_push_pull_output(&mut gpiob.crh);
+        let igniter_pin = gpiob.pb12.into_push_pull_output(&mut gpiob.crh);
+
+        let arming_switch = gpiob.pb15.into_pull_down_input(&mut gpiob.crh);
+        let mut ignition_detection = gpiod.pd12.into_pull_down_input(&mut gpiod.crh);
 
         // Set up the ignition detection interrupt handler.
         // This will trigger on EXTI1.
@@ -228,9 +229,8 @@ mod app {
     // Optional idle, can be removed if not needed.
     #[idle]
     fn idle(_: idle::Context) -> ! {
-        defmt::info!("idle");
-
         loop {
+            // cortex_m::asm::wfi();
             continue;
         }
     }
@@ -239,8 +239,6 @@ mod app {
     /// or after the USB_HP_CAN_TX ISR is pended.
     #[task(binds = USB_HP_CAN_TX, local = [can_tx], shared = [can_tx_queue])]
     fn can_tx(cx: can_tx::Context) {
-        defmt::info!("can_tx");
-
         let mut tx_queue = cx.shared.can_tx_queue;
         let tx = cx.local.can_tx;
 
@@ -382,7 +380,7 @@ mod app {
         }
 
         ignition_detect.lock(|ignition_detect| {
-            if ignition_detect.is_high() {
+            if ignition_detect.is_low() {
                 state = state.set_ignited();
             }
         });

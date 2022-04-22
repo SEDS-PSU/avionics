@@ -1,6 +1,6 @@
 //! Shared definitions and code for Pi <-> Output Board communication.
 
-use core::num::{NonZeroU16, NonZeroU8};
+use core::{num::{NonZeroU16, NonZeroU8}, fmt};
 
 use serde::{Serialize, Deserialize};
 
@@ -50,7 +50,7 @@ pub struct Status {
 
 const _: () = assert!(<Status as postcard::MaxSize>::POSTCARD_MAX_SIZE == 6);
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Deserialize, Serialize, postcard::MaxSize)]
+#[derive(Copy, Clone, PartialEq, Eq, Deserialize, Serialize, postcard::MaxSize)]
 pub struct State(u8);
 
 const _: () = assert!(<State as postcard::MaxSize>::POSTCARD_MAX_SIZE == 1);
@@ -74,6 +74,15 @@ impl State {
 
     pub const fn is_ignited(self) -> bool {
         self.0 & 0b10 != 0
+    }
+}
+
+impl fmt::Debug for State {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("State")
+            .field("armed", &self.is_armed())
+            .field("ignited", &self.is_ignited())
+            .finish()
     }
 }
 

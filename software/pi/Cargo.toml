@@ -12,6 +12,7 @@ tungstenite = "0.17.1"
 tokio-tungstenite = "0.17.1"
 futures-util = "0.3.21"
 thread-priority = "0.8.2"
+serde = "1.0.136"
 
 [dependencies.tokio]
 version = "1.0"

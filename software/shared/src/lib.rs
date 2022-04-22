@@ -6,6 +6,10 @@ pub mod pi_sensor;
 
 pub use valve::{Valves, PackedValves, TwoWay, ThreeWay};
 
-pub const RASPI_ID: u16 = 0;
-pub const OUTPUT_BOARD_ID: u16 = 1;
-pub const SENSOR_BOARD_ID: u16 = 2;
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(u8)]
+pub enum Id {
+    Raspi = 0,
+    OutputBoard = 1,
+    SensorBoard = 2,
+}

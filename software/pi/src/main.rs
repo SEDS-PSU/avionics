@@ -1,13 +1,19 @@
 // mod ground_station;
 
-use std::{error::Error, time::Duration, thread};
+mod can;
+mod boards;
 
+use std::{error::Error, time::Duration};
+
+use shared::pi_output::{Command, Igniter};
 // use ground_station::GroundStation;
-use socketcan::{CanSocket, CanFrame};
-use shared::{pi_sensor, pi_output};
 use thread_priority::{ThreadPriority, ThreadSchedulePolicy, RealtimeThreadSchedulePolicy};
 
-fn main() -> Result<(), Box<dyn Error>> {
+use crate::{can::CanBus, boards::OutputBoard};
+
+type Result<T> = std::result::Result<T, Box<dyn Error>>;
+
+fn main() -> Result<()> {
     // let ground_station = GroundStation::connect(soft_cpu)?;
 
     thread_priority::set_thread_priority_and_policy(
@@ -20,16 +26,18 @@ fn main() -> Result<(), Box<dyn Error>> {
         ThreadSchedulePolicy::Realtime(RealtimeThreadSchedulePolicy::Deadline),
     ).unwrap();
 
-    let can = CanSocket::open("can0")?;
-    can.set_read_timeout(Duration::from_micros(1_000))?;
-    can.set_write_timeout(Duration::from_micros(1_0000))?;
+    let can_bus = CanBus::setup()?;
+    let output_board = OutputBoard::connect(can_bus)?;
 
-    // let (header, data) = request_sensor_data(&can).unwrap();
-    // println!("{:#?}", header);
-    // println!("{:#?}", data);
+    let status = output_board.get_status()?;
 
-    let status = request_output_status(&can)?;
     println!("output board status: {:#?}", status);
+
+    output_board.execute_commands(&[
+        Command::Igniter(Igniter::Activate),
+        Command::Wait(2_000.try_into().unwrap()),
+        Command::Igniter(Igniter::Deactivate),
+    ])?;
 
     // loop {
     //     // TODO: Do stuff with CAN bus, etc
@@ -40,90 +48,3 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     Ok(())
 }
-
-fn output_request_to_frame(
-    request: pi_output::Request,
-) -> Result<CanFrame, Box<dyn Error>> {
-    let data  = postcard::to_stdvec(&request)?;
-
-    let frame = CanFrame::new(
-        shared::OUTPUT_BOARD_ID as _,
-        &data,
-        false,
-        false,
-    )?;
-
-    Ok(frame)
-}
-
-fn request_output_status(
-    can: &CanSocket,
-) -> Result<pi_output::Status, Box<dyn Error>> {
-    let frame = output_request_to_frame(pi_output::Request::GetStatus)?;
-
-    can.write_frame(&frame)?;
-
-    let status_frame = can.read_frame()?;
-    let status: pi_output::Status = postcard::from_bytes(&status_frame.data())?;
-
-    Ok(status)
-}
-
-fn sensor_request_to_frame(request: pi_sensor::Request) -> Result<CanFrame, Box<dyn Error>> {
-    let data = postcard::to_stdvec(&request)?;
-
-    let frame = CanFrame::new(
-        shared::SENSOR_BOARD_ID as _,
-        &data,
-        false,
-        false,
-    )?;
-
-    Ok(frame)
-}
-
-fn request_sensor_data(
-    can: &CanSocket,
-) -> Result<(pi_sensor::ResponseHeader, pi_sensor::AllSensors), Box<dyn Error>> {
-    let frame = sensor_request_to_frame(pi_sensor::Request::GetSensorData)?;
-
-    can.write_frame(&frame)?;
-
-    let header_frame = can.read_frame()?;
-    let header: pi_sensor::ResponseHeader = postcard::from_bytes(header_frame.data())?;
-
-    let mut v = vec![];
-    for _ in 0..5 {
-        let frame = can.read_frame()?;
-        v.extend_from_slice(frame.data());
-    }
-
-    let data: pi_sensor::AllSensors = postcard::from_bytes(&v)?;
-
-    Ok((header, data))
-}
-
-// fn main() -> Result<(), Box<dyn Error>> {
-//     let can = CanSocket::open("can0")?;
-
-//     let frame = sensor_request_to_frame(pi_sensor::Request::GetSensorData)?;
-    
-//     can.write_frame_insist(&frame)?;
-
-//     let header_frame = can.read_frame()?;
-//     let header: pi_sensor::ResponseHeader = postcard::from_bytes(header_frame.data())?;
-
-//     println!("{:#?}", header);
-
-//     let mut v = vec![];
-//     for _ in 0..5 {
-//         let frame = can.read_frame()?;
-//         v.extend_from_slice(frame.data());
-//     }
-
-//     let sensor_data: pi_sensor::AllSensors = postcard::from_bytes(&v)?;
-
-//     println!("{:#?}", sensor_data);
-
-//     Ok(())
-// }
