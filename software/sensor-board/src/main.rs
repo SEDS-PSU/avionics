@@ -13,13 +13,13 @@ const FREQUENCY: u32 = 36_000_000; // Hz
 
 type Duration = fugit::Duration<u32, 1, FREQUENCY>;
 
-const RASPI_ID: bxcan::StandardId = if let Some(id) = bxcan::StandardId::new(shared::RASPI_ID) {
+const RASPI_ID: bxcan::StandardId = if let Some(id) = bxcan::StandardId::new(shared::Id::Raspi as u16) {
     id
 } else {
     panic!("RASPI_ID is not a valid standard CAN ID");
 };
 const SENSOR_BOARD_ID: bxcan::StandardId =
-    if let Some(id) = bxcan::StandardId::new(shared::SENSOR_BOARD_ID) {
+    if let Some(id) = bxcan::StandardId::new(shared::Id::SensorBoard as u16) {
         id
     } else {
         panic!("SENSOR_ID is not a valid standard CAN ID");
@@ -122,7 +122,7 @@ mod app {
             .use_hse(36.mhz())
             // do we need other stuff here?
             .sysclk(FREQUENCY.hz())
-            .pclk1(16.mhz())
+            .pclk1(9.mhz())
             .freeze(&mut flash.acr);
 
         // Set up CAN bus.
@@ -253,10 +253,10 @@ mod app {
 
         can.assign_pins((can_tx_pin, can_rx_pin), &mut afio.mapr);
 
-        // APB1 (PCLK1): 16MHz, Bit rate: 1000kBit/s, Sample Point 87.5%
+        // APB1 (PCLK1): 9MHz, Bit rate: 500kBit/s, Sample Point 87.5%
         // Value was calculated with http://www.bittiming.can-wiki.info/
         let mut can = bxcan::Can::builder(can)
-            .set_bit_timing(0x001c0000)
+            .set_bit_timing(0x001e0000)
             .leave_disabled();
 
         // Only recieve frames intended for the sensor board.
@@ -276,8 +276,6 @@ mod app {
         // Set up monotonic scheduler.
         let mut dcb = cx.core.DCB;
         let systick = cx.core.SYST;
-
-        defmt::info!("syclk: {}", clocks.sysclk().0);
 
         let mono = DwtSystick::new(&mut dcb, dwt, systick, clocks.sysclk().0);
 
@@ -307,8 +305,6 @@ mod app {
     // Optional idle, can be removed if not needed.
     #[idle]
     fn idle(_: idle::Context) -> ! {
-        defmt::info!("idle");
-
         loop {
             continue;
         }
@@ -452,7 +448,7 @@ mod app {
     }
 
     fn enqueue_frame(queue: &mut Queue<Frame, 16>, frame: Frame) {
-        // queue.enqueue(frame).expect("the frame queue is full");
+        queue.enqueue(frame).expect("the frame queue is full");
         rtic::pend(Interrupt::USB_HP_CAN_TX);
     }
 

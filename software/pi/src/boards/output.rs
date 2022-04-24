@@ -12,12 +12,17 @@ impl OutputBoard {
             can_bus,
         };
 
-        if let Err(e) = this.get_status() {
+        if let Err(e) = this.reset() {
             eprintln!("failed to connect to output board");
             return Err(e);
         }
 
         Ok(this)
+    }
+
+    pub fn reset(&self) -> Result<()> {
+        self.can_bus.send(Id::OutputBoard, Request::Reset)?;
+        Ok(())
     }
 
     pub fn get_status(&self) -> Result<Status> {

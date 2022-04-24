@@ -42,4 +42,12 @@ impl CanBus {
     
         Ok(data)
     }
+
+    pub fn recieve_buf<const N: usize>(&self) -> Result<[u8; N]> {
+        let mut buf = [0u8; N];
+        let frame = self.socket.read_frame()?;
+        let data = frame.data();
+    
+        Ok(data)
+    }
 }
