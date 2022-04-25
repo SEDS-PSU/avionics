@@ -20,7 +20,9 @@ default-features = false
 features = ["io-util", "rt", "time"]
 
 [dependencies.postcard]
-version = "0.7.3"
+git = "https://github.com/lachlansneff/postcard.git"
+branch = "max-serialization-size"
+# version = "0.7.3"
 features = ["use-std"]
 
 [dependencies.shared]

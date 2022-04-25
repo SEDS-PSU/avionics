@@ -45,9 +45,15 @@ impl CanBus {
 
     pub fn recieve_buf<const N: usize>(&self) -> Result<[u8; N]> {
         let mut buf = [0u8; N];
-        let frame = self.socket.read_frame()?;
-        let data = frame.data();
-    
-        Ok(data)
+        let mut idx = 0;
+        
+        while idx < buf.len() {
+            let frame = self.socket.read_frame()?;
+            let data = frame.data();
+            buf[idx..][..data.len()].copy_from_slice(data);
+            idx += data.len();
+        }
+
+        Ok(buf)
     }
 }

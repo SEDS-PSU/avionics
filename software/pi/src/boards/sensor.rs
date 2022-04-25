@@ -28,10 +28,11 @@ impl SensorBoard {
     pub fn get_sensor_data(&self) -> Result<AllSensors> {
         self.can_bus.send(Id::SensorBoard, Request::GetSensorData)?;
 
-        let heading: ResponseHeader = self.can_bus.receive()?;
-        
-        let mut buf = [0; pi_sensor::AllSensors::POSTCARD_MAX_SIZE];
+        let _header: ResponseHeader = self.can_bus.receive()?;
 
-        Ok(())
+        let buf = self.can_bus.recieve_buf::<{8 * 5}>()?;
+        let sensors = postcard::from_bytes(&buf)?;
+
+        Ok(sensors)
     }
 }
