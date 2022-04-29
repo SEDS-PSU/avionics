@@ -1,6 +1,9 @@
+use std::{thread, time::Duration};
+
 use shared::{pi_output::{Status, Request, Command}, Id};
 
-use crate::{can::CanBus, Result};
+use crate::can::CanBus;
+use anyhow::{Result, Context};
 
 pub struct OutputBoard {
     can_bus: CanBus,
@@ -12,10 +15,9 @@ impl OutputBoard {
             can_bus,
         };
 
-        if let Err(e) = this.reset() {
-            eprintln!("failed to connect to output board");
-            return Err(e);
-        }
+        this.reset().context("failed to connect to output board")?;
+
+        thread::sleep(Duration::from_millis(100));
 
         Ok(this)
     }

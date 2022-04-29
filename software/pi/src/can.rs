@@ -1,6 +1,6 @@
 use std::{rc::Rc, time::Duration};
 
-use crate::Result;
+use anyhow::Result;
 use shared::Id;
 use socketcan::{CanSocket, CanFrame};
 
@@ -21,6 +21,14 @@ impl CanBus {
         })
     }
 
+    pub fn clear(&self) -> Result<()> {
+        self.socket.set_nonblocking(true)?;
+        while let Ok(_) = self.socket.read_frame() {}
+        self.socket.set_nonblocking(false)?;
+
+        Ok(())
+    }
+
     pub fn send(&self, to: Id, item: impl serde::Serialize) -> Result<()> {
         let data  = postcard::to_stdvec(&item)?;
     
@@ -31,7 +39,7 @@ impl CanBus {
             false,
         )?;
     
-        self.socket.write_frame(&frame)?;
+        self.socket.write_frame_insist(&frame)?;
     
         Ok(())
     }

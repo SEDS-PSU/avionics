@@ -1,52 +1,91 @@
 use std::{error::Error, thread::{self, JoinHandle}, sync::{atomic::{AtomicBool, Ordering}, Arc}, time::Duration};
-use core_affinity::CoreId;
 use futures_util::{StreamExt, try_join, SinkExt};
 use tokio::{net::{TcpListener, TcpStream}, task, runtime, time};
 use tungstenite::Message;
+use serde::{Serialize, Deserialize};
 
-pub enum AbortType {
-    /// Full purge.
-    Hard,
-    /// Pause and change valves to safe but non-purging.
-    Soft,
+#[derive(Debug, Deserialize, Serialize)]
+enum OpenClosed {
+    #[serde(rename = "closed")]
+    Closed,
+    #[serde(rename = "open")]
+    Open,
 }
 
-enum Incoming {
-    Abort {
-        ty: AbortType,
-    },
-    StartSequence {
-        name: String,
-    },
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Valves {
+    #[serde(rename = "FO_FP")]
+    fo_fp: OpenClosed,
+    #[serde(rename = "FC_FP")]
+    fc_fp: OpenClosed,
+    #[serde(rename = "FC_P")]
+    fc_p: OpenClosed,
+    #[serde(rename = "FC3_O")]
+    fc3_o: OpenClosed,
+    #[serde(rename = "FO2_O")]
+    fo2_o: OpenClosed,
+    #[serde(rename = "FO_P1")]
+    fo_p1: OpenClosed,
+    #[serde(rename = "FO_P2")]
+    fo_p2: OpenClosed,
+    #[serde(rename = "FC1_F")]
+    fc1_f: OpenClosed,
+    #[serde(rename = "PV_F")]
+    pv_f: OpenClosed,
+    #[serde(rename = "PV_O")]
+    pv_o: OpenClosed,
 }
 
-pub enum AbortCause {
-
+#[derive(Debug, Deserialize, Serialize)]
+enum Command {
+    SetValves(Valves),
+    HardAbort,
+    SoftAbort,
+    Ignite,
 }
 
-enum Anomaly {
-    /// A sensor is out-of-range.
-    SensorOOR {
-        sensor: String,
-        value: f32,
-    },
-}
-
-enum Outgoing {
-    Aborted {
-        cause: Anomaly,
-        ty: AbortType,
-    },
-    Warning {
-        cause: Anomaly,
-    },
-    SensorData {
-        // TODO
-    },
-    ValveSequenceChanged {
-        old: String,
-        new: String,
-    },
+#[derive(Debug, Deserialize, Serialize)]
+struct SensorData {
+    #[serde(rename = "PT1_F")]
+    pt1_f: Option<f32>,
+    #[serde(rename = "PT2_F")]
+    pt2_f: Option<f32>,
+    #[serde(rename = "PT1_O")]
+    pt1_o: Option<f32>,
+    #[serde(rename = "PT2_O")]
+    pt2_o: Option<f32>,
+    #[serde(rename = "PT3_O")]
+    pt3_o: Option<f32>,
+    #[serde(rename = "PT4_O")]
+    pt4_o: Option<f32>,
+    #[serde(rename = "PT1_P")]
+    pt1_p: Option<f32>,
+    #[serde(rename = "PT2_P")]
+    pt2_p: Option<f32>,
+    #[serde(rename = "PT1_E")]
+    pt1_e: Option<f32>,
+    #[serde(rename = "PT2_E")]
+    pt2_e: Option<f32>,
+    #[serde(rename = "TC1_F")]
+    tc1_f: Option<f32>,
+    #[serde(rename = "TC2_F")]
+    tc2_f: Option<f32>,
+    #[serde(rename = "TC1_O")]
+    tc1_o: Option<f32>,
+    #[serde(rename = "TC5_O")]
+    tc5_o: Option<f32>,
+    #[serde(rename = "TC1_E")]
+    tc1_e: Option<f32>,
+    #[serde(rename = "TC2_E")]
+    tc2_e: Option<f32>,
+    #[serde(rename = "FM_F")]
+    fm_f: Option<f32>,
+    #[serde(rename = "FM_O")]
+    fm_o: Option<f32>,
+    #[serde(rename = "ThrustLoadCell")]
+    thrust_load_cell: Option<f32>,
+    #[serde(rename = "NitrousLoadCell")]
+    nitrous_load_cell: Option<f32>,
 }
 
 pub struct GroundStation {
@@ -60,7 +99,7 @@ impl GroundStation {
     /// Ideally, the ground station would be hosting the server and the test-stand/rocket
     /// would connect to that as a client (over UDP). However, the test-stand hosting the server itself
     /// is easier given current constraints.
-    pub fn connect(cpu_core: CoreId) -> Result<GroundStation, Box<dyn Error>> {
+    pub fn connect() -> Result<GroundStation, Box<dyn Error>> {
         let (in_tx, in_rx) = flume::unbounded();
         let (out_tx, out_rx) = flume::unbounded();
 
@@ -68,8 +107,6 @@ impl GroundStation {
 
         let connected_clone = connected.clone();
         let handle = thread::spawn(move || {
-            core_affinity::set_for_current(cpu_core);
-
             run_ground_station(out_tx, in_rx, connected_clone).unwrap();
         });
 

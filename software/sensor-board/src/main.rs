@@ -25,13 +25,14 @@ const SENSOR_BOARD_ID: bxcan::StandardId =
         panic!("SENSOR_ID is not a valid standard CAN ID");
     };
 
-#[rtic::app(device = stm32f1xx_hal::pac, dispatchers = [EXTI0])]
+#[rtic::app(device = stm32f1xx_hal::pac, dispatchers = [EXTI0, EXTI1])]
 mod app {
     use core::fmt;
 
     use crate::{Duration, FREQUENCY, SENSOR_BOARD_ID};
     use bxcan::{filter::Mask32, Frame, Interrupts, Rx, StandardId, Tx};
     use dwt_systick_monotonic::DwtSystick;
+    use embedded_hal::adc::Channel;
     use heapless::spsc::Queue;
     use mcp96x::{FilterCoefficient, ThermocoupleType, MCP96X};
     use postcard::MaxSize;
@@ -114,6 +115,14 @@ mod app {
     fn init(cx: init::Context) -> (Shared, Local, init::Monotonics) {
         defmt::info!("init");
 
+        // Allow RTT to work during `wfe`, `wfi`
+        cx.device.DBGMCU.cr.modify(|_, w| {
+            w.dbg_sleep().set_bit();
+            w.dbg_standby().set_bit();
+            w.dbg_stop().set_bit()
+        });
+        cx.device.RCC.ahbenr.modify(|_, w| w.dma1en().enabled());
+
         let mut flash = cx.device.FLASH.constrain();
         let rcc = cx.device.RCC.constrain();
 
@@ -172,7 +181,7 @@ mod app {
                 cx.device.I2C1,
                 (i2c_scl, i2c_sda),
                 &mut afio.mapr,
-                100.khz(),
+                150.khz(),
                 clocks.clone(),
                 1000,
                 10,
@@ -280,7 +289,6 @@ mod app {
         let mono = DwtSystick::new(&mut dcb, dwt, systick, clocks.sysclk().0);
 
         sensor_poll::spawn().unwrap();
-        send_sensor_data::spawn_after(Duration::secs(2)).unwrap();
 
         // Setup the monotonic timer
         (
@@ -306,7 +314,7 @@ mod app {
     #[idle]
     fn idle(_: idle::Context) -> ! {
         loop {
-            continue;
+            cortex_m::asm::wfi();
         }
     }
 
@@ -321,13 +329,26 @@ mod app {
     #[task(local = [adc1, analog_pins], shared = [sensor_data, battery_millivolts])]
     fn read_adc1(cx: read_adc1::Context) {
         // defmt::info!("read_adc1");
+
+        // let start = monotonics::now();
+
         let read_adc1::LocalResources { adc1, analog_pins } = cx.local;
         let read_adc1::SharedResources {
             sensor_data,
             battery_millivolts,
         } = cx.shared;
 
-        let s = |res: nb::Result<u16, ()>| match res {
+        fn read_adc(adc: &mut Adc<ADC1>, pin: &mut impl Channel<ADC1, ID = u8>) -> Result<u16, ()> {
+            let mut acc = 0u32;
+            for _ in 0..4 {
+                let sample: u32 = adc.read(pin).map_err(|_| ())?;
+                acc += sample;
+            }
+
+            Ok((acc / 4) as u16)
+        }
+
+        let s = |res: Result<u16, ()>| match res {
             Ok(v) => SensorReading::new(v),
             Err(_) => SensorReading::new_error(SensorError::Unknown),
         };
@@ -339,22 +360,22 @@ mod app {
 
         // This is the source of truth for these sensor to pin mappings.
 
-        let fm_f = s(adc1.read(&mut analog_pins.flow1));
-        let fm_o = s(adc1.read(&mut analog_pins.flow2));
+        let fm_f = s(read_adc(adc1, &mut analog_pins.flow1));
+        let fm_o = s(read_adc(adc1, &mut analog_pins.flow2));
 
         // TODO: Do conversions into newtons.
-        let load1 = l(adc1.read(&mut analog_pins.load_cell1));
-        let load2 = l(adc1.read(&mut analog_pins.load_cell2));
+        let load1 = l(read_adc(adc1, &mut analog_pins.load_cell1));
+        let load2 = l(read_adc(adc1, &mut analog_pins.load_cell2));
 
-        let pt1_f = s(adc1.read(&mut analog_pins.pressure1));
-        let pt2_f = s(adc1.read(&mut analog_pins.pressure2));
-        let pt1_e = s(adc1.read(&mut analog_pins.pressure3));
-        let pt2_e = s(adc1.read(&mut analog_pins.pressure4));
-        let pt1_o = s(adc1.read(&mut analog_pins.pressure5));
-        let pt2_o = s(adc1.read(&mut analog_pins.pressure6));
-        let pt4_o = s(adc1.read(&mut analog_pins.pressure7));
-        let pt1_p = s(adc1.read(&mut analog_pins.pressure8));
-        let pt2_p = s(adc1.read(&mut analog_pins.pressure9));
+        let pt1_f = s(read_adc(adc1, &mut analog_pins.pressure1));
+        let pt2_f = s(read_adc(adc1, &mut analog_pins.pressure2));
+        let pt1_e = s(read_adc(adc1, &mut analog_pins.pressure3));
+        let pt2_e = s(read_adc(adc1, &mut analog_pins.pressure4));
+        let pt1_o = s(read_adc(adc1, &mut analog_pins.pressure5));
+        let pt2_o = s(read_adc(adc1, &mut analog_pins.pressure6));
+        let pt4_o = s(read_adc(adc1, &mut analog_pins.pressure7));
+        let pt1_p = s(read_adc(adc1, &mut analog_pins.pressure8));
+        let pt2_p = s(read_adc(adc1, &mut analog_pins.pressure9));
 
         let bat_voltage = adc1
             .read(&mut analog_pins.battery)
@@ -380,11 +401,16 @@ mod app {
 
             *bat = bat_voltage;
         });
+
+        // let elapsed = monotonics::now() - start;
+        // defmt::info!("read_adc1 took {} us", elapsed.ticks() / Duration::micros(1).ticks());
     }
 
     #[task(local = [thermocouples], shared = [sensor_data])]
     fn read_thermocouples(cx: read_thermocouples::Context) {
         // defmt::info!("read_thermocouples");
+        // let start = monotonics::now();
+
         let tc = cx.local.thermocouples;
         let mut sensor_data = cx.shared.sensor_data;
 
@@ -412,14 +438,15 @@ mod app {
             s.tc1_o = t5.unwrap_or(Temperature::new_error(SensorError::NoData));
             s.tc5_o = t6.unwrap_or(Temperature::new_error(SensorError::NoData));
         });
+
+        // let elapsed = monotonics::now() - start;
+        // defmt::info!("read_thermocouples took {} us", elapsed.ticks() / Duration::micros(1).ticks());
     }
 
     /// This is fired every time the CAN controller has finished a frame transmission
     /// or after the USB_HP_CAN_TX ISR is pended.
-    #[task(binds = USB_HP_CAN_TX, local = [can_tx], shared = [can_tx_queue])]
+    #[task(binds = USB_HP_CAN_TX, local = [can_tx], shared = [can_tx_queue], priority = 2)]
     fn can_tx(cx: can_tx::Context) {
-        defmt::info!("can_tx");
-
         let mut tx_queue = cx.shared.can_tx_queue;
         let tx = cx.local.can_tx;
 
@@ -452,10 +479,8 @@ mod app {
         rtic::pend(Interrupt::USB_HP_CAN_TX);
     }
 
-    #[task(shared = [can_tx_queue, sensor_data, battery_millivolts])]
+    #[task(shared = [can_tx_queue, sensor_data, battery_millivolts], priority = 2)]
     fn send_sensor_data(cx: send_sensor_data::Context) {
-        send_sensor_data::spawn_after(Duration::secs(2)).unwrap(); // temporary
-
         let send_sensor_data::SharedResources {
             mut can_tx_queue,
             sensor_data,
@@ -464,8 +489,6 @@ mod app {
 
         let (sensor_data, battery_millivolts) =
             (sensor_data, battery_millivolts).lock(|data, bat| (data.clone(), *bat));
-
-        defmt::info!("sensor_data: {:#?}", defmt::Debug2Format(&sensor_data));
 
         let header = pi_sensor::ResponseHeader {
             doing_good: true, // temporary
@@ -502,7 +525,8 @@ mod app {
     #[task(binds = USB_LP_CAN_RX0,
         local = [
             can_rx,
-        ]
+        ],
+        priority = 2,
     )]
     fn can_rx0(cx: can_rx0::Context) {
         let can_rx0::LocalResources { can_rx } = cx.local;
@@ -510,8 +534,6 @@ mod app {
         loop {
             match can_rx.receive() {
                 Ok(frame) => {
-                    defmt::info!("received a CAN frame");
-
                     let data = if let Some(data) = frame.data() {
                         data.as_ref()
                     } else {

@@ -118,6 +118,14 @@ mod app {
     fn init(cx: init::Context) -> (Shared, Local, init::Monotonics) {
         defmt::info!("init");
 
+        // Allow RTT to work during `wfe`, `wfi`
+        cx.device.DBGMCU.cr.modify(|_, w| {
+            w.dbg_sleep().set_bit();
+            w.dbg_standby().set_bit();
+            w.dbg_stop().set_bit()
+        });
+        cx.device.RCC.ahbenr.modify(|_, w| w.dma1en().enabled());
+
         let mut flash = cx.device.FLASH.constrain();
         let rcc = cx.device.RCC.constrain();
         let mut exti = cx.device.EXTI;
@@ -230,8 +238,7 @@ mod app {
     #[idle]
     fn idle(_: idle::Context) -> ! {
         loop {
-            // cortex_m::asm::wfi();
-            continue;
+            cortex_m::asm::wfi();
         }
     }
 
