@@ -321,14 +321,14 @@ mod app {
             }
         }
 
-        actuation_pins.solenoid1.set_state(a(new_states.fc_fp));
-        actuation_pins.solenoid2.set_state(a(new_states.fc_op));
-        actuation_pins.solenoid3.set_state(a(new_states.fo_p));
-        actuation_pins.solenoid4.set_state(a(new_states.fo_fp));
-        actuation_pins.solenoid5.set_state(a(new_states.fc_p));
-        actuation_pins.solenoid6.set_state(a(new_states.fc_op));
-        actuation_pins.solenoid7.set_state(a(new_states.fc1_o));
-        actuation_pins.solenoid8.set_state(a(new_states.fc2_o));
+        actuation_pins.solenoid1.set_state(a(new_states.fo_fp));
+        actuation_pins.solenoid2.set_state(a(new_states.fc_fp));
+        actuation_pins.solenoid3.set_state(a(new_states.fc_p));
+        actuation_pins.solenoid4.set_state(a(new_states.fc1_f));
+        actuation_pins.solenoid5.set_state(a(new_states.fo_p1));
+        actuation_pins.solenoid6.set_state(a(new_states.fo2_o));
+        actuation_pins.solenoid7.set_state(a(new_states.fc4_o));
+        actuation_pins.solenoid8.set_state(a(new_states.fc3_o));
 
         actuation_pins
             .main_fuel_solenoid

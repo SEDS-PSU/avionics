@@ -5,15 +5,12 @@ mod boards;
 use std::{time::Duration, fs::OpenOptions, io::Write, thread};
 
 use anyhow::{Result, Context, Ok};
-use shared::pi_output::{Command, Igniter};
-// use ground_station::GroundStation;
+use ground_station::GroundStation;
 use thread_priority::{ThreadPriority, ThreadSchedulePolicy, RealtimeThreadSchedulePolicy};
 
 use crate::{can::CanBus, boards::{OutputBoard, SensorBoard}};
 
 fn run() -> Result<()> {
-    // let ground_station = GroundStation::connect(soft_cpu)?;
-
     thread_priority::set_thread_priority_and_policy(
         0 as _, // current therad
         ThreadPriority::Deadline {
@@ -32,28 +29,18 @@ fn run() -> Result<()> {
     let output_board = OutputBoard::connect(can_bus.clone())?;
     let sensor_board = SensorBoard::connect(can_bus)?;
 
-    let status = output_board.get_status()?;
-
-    println!("output board status: {:#?}", status);
-
-    // output_board.execute_commands(&[
-    //     Command::Igniter(Igniter::Activate),
-    //     Command::Wait(2_000.try_into().unwrap()),
-    //     Command::Igniter(Igniter::Deactivate),
-    // ])?;
-
-    // loop {
-    //     // TODO: Do stuff with CAN bus, etc
-
-    //     // Yield until the next period.
-    //     thread::yield_now();
-    // }
+    let ground_station = GroundStation::connect()?;
 
     loop {
-        thread::sleep(Duration::from_millis(1000));
-
         let sensor_data = sensor_board.get_sensor_data()?;
-        println!("{:#?}", sensor_data);
+        ground_station.send_sensor_data(sensor_data);
+
+        if let Some(cmds) = ground_station.read_new_commands() {
+            output_board.execute_commands(&cmds)?;
+        }
+
+        // Yield until the next period.
+        thread::yield_now();
     }
 }
 

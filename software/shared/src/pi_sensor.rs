@@ -133,7 +133,8 @@ impl Force {
 pub struct AllSensors {
     // Thermocouples 
     pub tc1_e: Temperature,
-    pub tc2_e: Temperature,
+    /// Unused
+    pub thermo2: Temperature,
     pub tc1_f: Temperature,
     pub tc2_f: Temperature,
     pub tc1_o: Temperature,
@@ -153,11 +154,13 @@ pub struct AllSensors {
     pub pt1_f: SensorReading,
     pub pt2_f: SensorReading,
     pub pt1_e: SensorReading,
-    pub pt2_e: SensorReading,
-    pub pt1_o: SensorReading,
+    /// Unused
+    pub pres4: SensorReading,
     pub pt2_o: SensorReading,
+    pub pt3_o: SensorReading,
     pub pt4_o: SensorReading,
-    pub pt1_p: SensorReading,
+    /// Unused
+    pub pres8: SensorReading,
     pub pt2_p: SensorReading,
 }
 

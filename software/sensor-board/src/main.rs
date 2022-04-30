@@ -370,11 +370,11 @@ mod app {
         let pt1_f = s(read_adc(adc1, &mut analog_pins.pressure1));
         let pt2_f = s(read_adc(adc1, &mut analog_pins.pressure2));
         let pt1_e = s(read_adc(adc1, &mut analog_pins.pressure3));
-        let pt2_e = s(read_adc(adc1, &mut analog_pins.pressure4));
-        let pt1_o = s(read_adc(adc1, &mut analog_pins.pressure5));
-        let pt2_o = s(read_adc(adc1, &mut analog_pins.pressure6));
+        let pres4 = s(read_adc(adc1, &mut analog_pins.pressure4));
+        let pt2_o = s(read_adc(adc1, &mut analog_pins.pressure5));
+        let pt3_o = s(read_adc(adc1, &mut analog_pins.pressure6));
         let pt4_o = s(read_adc(adc1, &mut analog_pins.pressure7));
-        let pt1_p = s(read_adc(adc1, &mut analog_pins.pressure8));
+        let pres8 = s(read_adc(adc1, &mut analog_pins.pressure8));
         let pt2_p = s(read_adc(adc1, &mut analog_pins.pressure9));
 
         let bat_voltage = adc1
@@ -392,11 +392,11 @@ mod app {
             sensor_data.pt1_f = pt1_f;
             sensor_data.pt2_f = pt2_f;
             sensor_data.pt1_e = pt1_e;
-            sensor_data.pt2_e = pt2_e;
-            sensor_data.pt1_o = pt1_o;
+            sensor_data.pres4 = pres4;
             sensor_data.pt2_o = pt2_o;
+            sensor_data.pt3_o = pt3_o;
             sensor_data.pt4_o = pt4_o;
-            sensor_data.pt1_p = pt1_p;
+            sensor_data.pres8 = pres8;
             sensor_data.pt2_p = pt2_p;
 
             *bat = bat_voltage;
@@ -432,7 +432,7 @@ mod app {
 
         sensor_data.lock(|s| {
             s.tc1_e = t1.unwrap_or(Temperature::new_error(SensorError::NoData));
-            s.tc2_e = t2.unwrap_or(Temperature::new_error(SensorError::NoData));
+            s.thermo2 = t2.unwrap_or(Temperature::new_error(SensorError::NoData));
             s.tc1_f = t3.unwrap_or(Temperature::new_error(SensorError::NoData));
             s.tc2_f = t4.unwrap_or(Temperature::new_error(SensorError::NoData));
             s.tc1_o = t5.unwrap_or(Temperature::new_error(SensorError::NoData));

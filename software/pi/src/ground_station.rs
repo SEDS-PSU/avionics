@@ -1,39 +1,43 @@
-use std::{error::Error, thread::{self, JoinHandle}, sync::{atomic::{AtomicBool, Ordering}, Arc}, time::Duration};
-use futures_util::{StreamExt, try_join, SinkExt};
-use tokio::{net::{TcpListener, TcpStream}, task, runtime, time};
+use std::{thread::{self, JoinHandle}, cell::RefCell, time::Instant};
+use futures_util::{StreamExt, try_join, SinkExt, Sink, Stream};
+use shared::{pi_sensor, pi_output};
+use tokio::{net::{TcpListener, TcpStream}, task, runtime};
 use tungstenite::Message;
+use anyhow::{Result, Context};
 use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Deserialize, Serialize)]
-enum OpenClosed {
+enum ValveState {
     #[serde(rename = "closed")]
     Closed,
     #[serde(rename = "open")]
     Open,
+    #[serde(rename = "dontchange")]
+    DontChange,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Valves {
     #[serde(rename = "FO_FP")]
-    fo_fp: OpenClosed,
+    fo_fp: ValveState,
     #[serde(rename = "FC_FP")]
-    fc_fp: OpenClosed,
+    fc_fp: ValveState,
     #[serde(rename = "FC_P")]
-    fc_p: OpenClosed,
+    fc_p: ValveState,
     #[serde(rename = "FC3_O")]
-    fc3_o: OpenClosed,
+    fc1_f: ValveState,
     #[serde(rename = "FO2_O")]
-    fo2_o: OpenClosed,
+    fo_p1: ValveState,
     #[serde(rename = "FO_P1")]
-    fo_p1: OpenClosed,
+    fo2_o: ValveState,
     #[serde(rename = "FO_P2")]
-    fo_p2: OpenClosed,
+    fc4_o: ValveState,
     #[serde(rename = "FC1_F")]
-    fc1_f: OpenClosed,
+    fc3_o: ValveState,
     #[serde(rename = "PV_F")]
-    pv_f: OpenClosed,
+    pv_f: ValveState,
     #[serde(rename = "PV_O")]
-    pv_o: OpenClosed,
+    pv_o: ValveState,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -46,26 +50,21 @@ enum Command {
 
 #[derive(Debug, Deserialize, Serialize)]
 struct SensorData {
+    timestamp: u32,
     #[serde(rename = "PT1_F")]
     pt1_f: Option<f32>,
     #[serde(rename = "PT2_F")]
     pt2_f: Option<f32>,
-    #[serde(rename = "PT1_O")]
-    pt1_o: Option<f32>,
     #[serde(rename = "PT2_O")]
     pt2_o: Option<f32>,
     #[serde(rename = "PT3_O")]
     pt3_o: Option<f32>,
     #[serde(rename = "PT4_O")]
     pt4_o: Option<f32>,
-    #[serde(rename = "PT1_P")]
-    pt1_p: Option<f32>,
     #[serde(rename = "PT2_P")]
     pt2_p: Option<f32>,
     #[serde(rename = "PT1_E")]
     pt1_e: Option<f32>,
-    #[serde(rename = "PT2_E")]
-    pt2_e: Option<f32>,
     #[serde(rename = "TC1_F")]
     tc1_f: Option<f32>,
     #[serde(rename = "TC2_F")]
@@ -76,8 +75,6 @@ struct SensorData {
     tc5_o: Option<f32>,
     #[serde(rename = "TC1_E")]
     tc1_e: Option<f32>,
-    #[serde(rename = "TC2_E")]
-    tc2_e: Option<f32>,
     #[serde(rename = "FM_F")]
     fm_f: Option<f32>,
     #[serde(rename = "FM_O")]
@@ -89,122 +86,192 @@ struct SensorData {
 }
 
 pub struct GroundStation {
-    handle: JoinHandle<()>,
-    tx: flume::Sender<()>,
-    rx: flume::Receiver<()>,
-    connected: Arc<AtomicBool>,
+    _handle: JoinHandle<()>,
+    tx: flume::Sender<pi_sensor::AllSensors>,
+    rx: flume::Receiver<Vec<pi_output::Command>>,
 }
 
 impl GroundStation {
     /// Ideally, the ground station would be hosting the server and the test-stand/rocket
     /// would connect to that as a client (over UDP). However, the test-stand hosting the server itself
     /// is easier given current constraints.
-    pub fn connect() -> Result<GroundStation, Box<dyn Error>> {
+    pub fn connect() -> Result<GroundStation> {
         let (in_tx, in_rx) = flume::unbounded();
         let (out_tx, out_rx) = flume::unbounded();
 
-        let connected = Arc::new(AtomicBool::new(false));
-
-        let connected_clone = connected.clone();
         let handle = thread::spawn(move || {
-            run_ground_station(out_tx, in_rx, connected_clone).unwrap();
+            run_ground_station(out_tx, in_rx).unwrap();
         });
 
         Ok(Self {
-            handle,
+            _handle: handle,
             tx: in_tx,
             rx: out_rx,
-            connected,
         })
     }
 
-    pub fn send_new_data(&self, data: ()) {
-        if !self.connected.load(Ordering::SeqCst) {
-            return;
-        }
-        
-        todo!()
+    pub fn send_sensor_data(&self, data: pi_sensor::AllSensors) {
+        self.tx.send(data).expect("this should never fail");
     }
 
-    pub fn read_new_commands(&self) -> Option<()> {
-        if !self.connected.load(Ordering::SeqCst) {
-            return None;
-        }
-        
-        todo!()
+    pub fn read_new_commands(&self) -> Option<Vec<pi_output::Command>> {
+        self.rx.try_recv().ok()
     }
 }
 
-fn run_ground_station(tx: flume::Sender<()>, rx: flume::Receiver<()>, connected: Arc<AtomicBool>) -> Result<(), Box<dyn Error>> {
+struct ConnSide<'a> {
+    stream: TcpStream,
+    tx: flume::Sender<Vec<pi_output::Command>>,
+    rx: flume::Receiver<pi_sensor::AllSensors>,
+    current_valves: &'a RefCell<shared::Valves>,
+    start_time: Instant,
+}
+
+fn run_ground_station(tx: flume::Sender<Vec<pi_output::Command>>, rx: flume::Receiver<pi_sensor::AllSensors>) -> Result<()> {
     let rt = runtime::Builder::new_current_thread().build()?;
     let local = task::LocalSet::new();
 
+    let current_valves = RefCell::new(shared::Valves::default());
+    let start_time = Instant::now();
+
     local.block_on(&rt, async {
         let server = TcpListener::bind("0.0.0.0:8080").await?;
-
-        let mut abort_delayer: Option<task::JoinHandle<_>> = None;
     
         for (stream, addr) in server.accept().await {
             println!("accepted connection from {}", addr);
-            connected.store(true, Ordering::SeqCst);
 
-            if let Some(abort_task) = abort_delayer.take() {
-                abort_task.abort();
-            }
+            let conn_side = ConnSide {
+                stream,
+                tx: tx.clone(),
+                rx: rx.clone(),
+                current_valves: &current_valves,
+                start_time,
+            };
             
-            if let Err(e) = accept_connection(stream, tx.clone(), rx.clone()).await {
+            if let Err(e) = accept_connection(conn_side).await {
                 eprintln!("disconnected from ground station: {}", e);
             }
-
-            // Do a soft-abort if the ground-station disconnects and doesn't reconnect
-            // within 500 ms.
-            let abort_tx = tx.clone();
-            abort_delayer = Some(task::spawn(async move {
-                time::sleep(Duration::from_millis(500)).await;
-
-                // TODO: Send a soft-abort message.
-                abort_tx.send_async(()).await;
-            }));
-
-            connected.store(false, Ordering::SeqCst);
         }
 
         Ok(())
     })
 }
 
-async fn accept_connection(stream: TcpStream, tx: flume::Sender<()>, rx: flume::Receiver<()>) -> Result<(), Box<dyn Error>> {
-    let ws = tokio_tungstenite::accept_async(stream).await?;
-    let (mut writer, mut reader) = ws.split();
+async fn outgoing(
+    rx: flume::Receiver<pi_sensor::AllSensors>,
+    mut writer: impl Sink<Message, Error = tungstenite::Error> + Unpin,
+    start_time: Instant,
+    _current_valves: &RefCell<shared::Valves>,
+) -> Result<()> {
+    while let Ok(sensors) = rx.recv_async().await {
+        let sensor_data = SensorData {
+            timestamp: start_time.elapsed().as_millis() as u32,
+            pt1_f: sensors.pt1_f.unpack().map(|i| i as f32).ok(),
+            pt2_f: sensors.pt2_f.unpack().map(|i| i as f32).ok(),
+            pt2_o: sensors.pt2_o.unpack().map(|i| i as f32).ok(),
+            pt3_o: sensors.pt3_o.unpack().map(|i| i as f32).ok(),
+            pt4_o: sensors.pt4_o.unpack().map(|i| i as f32).ok(),
+            pt2_p: sensors.pt2_p.unpack().map(|i| i as f32).ok(),
+            pt1_e: sensors.pt1_e.unpack().map(|i| i as f32).ok(),
+            tc1_f: sensors.tc1_f.unpack().map(|i| i as f32).ok(),
+            tc2_f: sensors.tc2_f.unpack().map(|i| i as f32).ok(),
+            tc1_o: sensors.tc1_o.unpack().map(|i| i as f32).ok(),
+            tc5_o: sensors.tc5_o.unpack().map(|i| i as f32).ok(),
+            tc1_e: sensors.tc1_e.unpack().map(|i| i as f32).ok(),
+            fm_f: sensors.fm_f.unpack().map(|i| i as f32).ok(),
+            fm_o: sensors.fm_o.unpack().map(|i| i as f32).ok(),
+            thrust_load_cell: sensors.load1.unpack().map(|i| i as f32).ok(),
+            nitrous_load_cell: sensors.load2.unpack().map(|i| i as f32).ok(),
+        };
 
-    let writer_task = task::spawn_local(async move {
-        while let Ok(_outgoing) = rx.recv_async().await {
-            writer.send(todo!()).await?;
+        let msg = Message::Text(serde_json::to_string(&sensor_data)?);
+
+        writer.send(msg).await?;
+    }
+
+    Ok(())
+}
+
+async fn parse_msg(msg: Result<Message, tungstenite::Error>) -> Result<Command> {
+    let msg = msg?.into_text()?;
+    let msg = serde_json::from_str(&msg)
+        .context("failed to parse ws message as json")?;
+
+    Ok(msg)
+}
+
+async fn incoming(
+    tx: flume::Sender<Vec<pi_output::Command>>,
+    mut reader: impl Stream<Item = Result<Message, tungstenite::Error>> + Unpin,
+    current_valves: &RefCell<shared::Valves>,
+) -> Result<()> {
+    while let Some(msg) = reader.next().await {
+        let cmd = match parse_msg(msg).await {
+            Ok(cmd) => cmd,
+            Err(e) => {
+                eprintln!("{:?}", e);
+                continue;
+            }
+        };
+
+        match cmd {
+            Command::SetValves(states) => {
+                let mut current_valves = current_valves.borrow_mut();
+                macro_rules! two_way {
+                    ($states:ident.$valve:ident) => {
+                        match $states.$valve {
+                            ValveState::Open => shared::TwoWay::Open,
+                            ValveState::Closed => shared::TwoWay::Closed,
+                            ValveState::DontChange => current_valves.$valve,
+                        }
+                    };
+                }
+
+                macro_rules! three_way {
+                    ($states:ident.$valve:ident) => {
+                        match $states.$valve {
+                            ValveState::Open => shared::ThreeWay::NitrogenPathway,
+                            ValveState::Closed => shared::ThreeWay::FuelOxidizer,
+                            ValveState::DontChange => current_valves.$valve,
+                        }
+                    };
+                }
+
+                let valves = shared::Valves {
+                    fo_fp: two_way!(states.fo_fp),
+                    fc_fp: two_way!(states.fc_fp),
+                    fc_p: two_way!(states.fc_p),
+                    fc1_f: two_way!(states.fc1_f),
+                    fo_p1: two_way!(states.fo_p1),
+                    fo2_o: two_way!(states.fo2_o),
+                    fc4_o: two_way!(states.fc4_o),
+                    fc3_o: two_way!(states.fc3_o),
+                    pv_f: three_way!(states.pv_f),
+                    pv_o: three_way!(states.pv_o),
+                };
+
+                *current_valves = valves;
+                drop(current_valves);
+
+                tx.send_async(vec![pi_output::Command::SetValves(valves.into())]).await?;
+            },
+            Command::HardAbort => {
+                let valves = shared::Valves::default();
+                tx.send_async(vec![pi_output::Command::SetValves(valves.into())]).await?;
+            },
+            Command::SoftAbort => todo!(),
+            Command::Ignite => todo!(),
         }
+    }
 
-        Ok::<_, Box<dyn Error>>(())
-    });
+    Ok(())
+}
 
-    let reader_task = task::spawn_local(async move {
-        while let Some(msg) = reader.next().await {
-            let msg = msg?;
-            let s = match msg {
-                Message::Text(s) => s,
-                _ => {
-                    eprintln!("wrong websocket message format");
-                    continue;
-                },
-            };
+async fn accept_connection(cs: ConnSide<'_>) -> Result<()> {
+    let ws = tokio_tungstenite::accept_async(cs.stream).await?;
+    let (writer, reader) = ws.split();
 
-            
-        }
-
-        Ok::<_, Box<dyn Error>>(())
-    });
-
-    let (writer_res, reader_res) = try_join!(writer_task, reader_task)?;
-    writer_res?;
-    reader_res?;
+    try_join!(outgoing(cs.rx, writer, cs.start_time, cs.current_valves), incoming(cs.tx, reader, cs.current_valves))?;
 
     Ok(())
 }
