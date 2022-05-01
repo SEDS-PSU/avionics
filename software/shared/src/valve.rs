@@ -61,8 +61,8 @@ impl From<PackedValves> for Valves {
         }
 
         Self {
-            fc_fp: a(v.0 >> 0),
-            fo_fp: a(v.0 >> 1),
+            fo_fp: a(v.0 >> 0),
+            fc_fp: a(v.0 >> 1),
             fc_p: a(v.0 >> 2),
             fc1_f: a(v.0 >> 3),
             fo_p1: a(v.0 >> 4),

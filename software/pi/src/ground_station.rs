@@ -1,4 +1,4 @@
-use std::{thread::{self, JoinHandle}, cell::RefCell, time::Instant};
+use std::{thread::{self, JoinHandle}, time::Instant};
 use futures_util::{StreamExt, try_join, SinkExt, Sink, Stream};
 use shared::{pi_sensor, pi_output};
 use tokio::{net::{TcpListener, TcpStream}, task, runtime};
@@ -7,37 +7,43 @@ use anyhow::{Result, Context};
 use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Deserialize, Serialize)]
-enum ValveState {
+enum TwoWayState {
     #[serde(rename = "closed")]
     Closed,
     #[serde(rename = "open")]
     Open,
-    #[serde(rename = "dontchange")]
-    DontChange,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+enum ThreeWayState {
+    #[serde(rename = "nitrogen")]
+    NitrogenPathway,
+    #[serde(rename = "fueloxidizer")]
+    FuelOxidizer,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Valves {
     #[serde(rename = "FO_FP")]
-    fo_fp: ValveState,
+    fo_fp: TwoWayState,
     #[serde(rename = "FC_FP")]
-    fc_fp: ValveState,
+    fc_fp: TwoWayState,
     #[serde(rename = "FC_P")]
-    fc_p: ValveState,
-    #[serde(rename = "FC3_O")]
-    fc1_f: ValveState,
-    #[serde(rename = "FO2_O")]
-    fo_p1: ValveState,
-    #[serde(rename = "FO_P1")]
-    fo2_o: ValveState,
-    #[serde(rename = "FO_P2")]
-    fc4_o: ValveState,
+    fc_p: TwoWayState,
     #[serde(rename = "FC1_F")]
-    fc3_o: ValveState,
+    fc1_f: TwoWayState,
+    #[serde(rename = "FO_P1")]
+    fo_p1: TwoWayState,
+    #[serde(rename = "FO2_O")]
+    fo2_o: TwoWayState,
+    #[serde(rename = "FC4_O")]
+    fc4_o: TwoWayState,
+    #[serde(rename = "FC3_O")]
+    fc3_o: TwoWayState,
     #[serde(rename = "PV_F")]
-    pv_f: ValveState,
+    pv_f: ThreeWayState,
     #[serde(rename = "PV_O")]
-    pv_o: ValveState,
+    pv_o: ThreeWayState,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -50,6 +56,7 @@ enum Command {
 
 #[derive(Debug, Deserialize, Serialize)]
 struct SensorData {
+    #[serde(rename = "TIMESTAMP")]
     timestamp: u32,
     #[serde(rename = "PT1_F")]
     pt1_f: Option<f32>,
@@ -119,23 +126,22 @@ impl GroundStation {
     }
 }
 
-struct ConnSide<'a> {
+struct ConnSide {
     stream: TcpStream,
     tx: flume::Sender<Vec<pi_output::Command>>,
     rx: flume::Receiver<pi_sensor::AllSensors>,
-    current_valves: &'a RefCell<shared::Valves>,
     start_time: Instant,
 }
 
 fn run_ground_station(tx: flume::Sender<Vec<pi_output::Command>>, rx: flume::Receiver<pi_sensor::AllSensors>) -> Result<()> {
-    let rt = runtime::Builder::new_current_thread().build()?;
+    let rt = runtime::Builder::new_current_thread().enable_io().build()?;
     let local = task::LocalSet::new();
 
-    let current_valves = RefCell::new(shared::Valves::default());
     let start_time = Instant::now();
 
     local.block_on(&rt, async {
         let server = TcpListener::bind("0.0.0.0:8080").await?;
+        println!("listening");
     
         for (stream, addr) in server.accept().await {
             println!("accepted connection from {}", addr);
@@ -144,7 +150,6 @@ fn run_ground_station(tx: flume::Sender<Vec<pi_output::Command>>, rx: flume::Rec
                 stream,
                 tx: tx.clone(),
                 rx: rx.clone(),
-                current_valves: &current_valves,
                 start_time,
             };
             
@@ -161,7 +166,6 @@ async fn outgoing(
     rx: flume::Receiver<pi_sensor::AllSensors>,
     mut writer: impl Sink<Message, Error = tungstenite::Error> + Unpin,
     start_time: Instant,
-    _current_valves: &RefCell<shared::Valves>,
 ) -> Result<()> {
     while let Ok(sensors) = rx.recv_async().await {
         let sensor_data = SensorData {
@@ -203,7 +207,6 @@ async fn parse_msg(msg: Result<Message, tungstenite::Error>) -> Result<Command> 
 async fn incoming(
     tx: flume::Sender<Vec<pi_output::Command>>,
     mut reader: impl Stream<Item = Result<Message, tungstenite::Error>> + Unpin,
-    current_valves: &RefCell<shared::Valves>,
 ) -> Result<()> {
     while let Some(msg) = reader.next().await {
         let cmd = match parse_msg(msg).await {
@@ -216,42 +219,32 @@ async fn incoming(
 
         match cmd {
             Command::SetValves(states) => {
-                let mut current_valves = current_valves.borrow_mut();
-                macro_rules! two_way {
-                    ($states:ident.$valve:ident) => {
-                        match $states.$valve {
-                            ValveState::Open => shared::TwoWay::Open,
-                            ValveState::Closed => shared::TwoWay::Closed,
-                            ValveState::DontChange => current_valves.$valve,
-                        }
-                    };
+                fn two_way(state: TwoWayState) -> shared::TwoWay {
+                    match state {
+                        TwoWayState::Open => shared::TwoWay::Open,
+                        TwoWayState::Closed => shared::TwoWay::Closed,
+                    }
                 }
 
-                macro_rules! three_way {
-                    ($states:ident.$valve:ident) => {
-                        match $states.$valve {
-                            ValveState::Open => shared::ThreeWay::NitrogenPathway,
-                            ValveState::Closed => shared::ThreeWay::FuelOxidizer,
-                            ValveState::DontChange => current_valves.$valve,
-                        }
-                    };
+                fn three_way(state: ThreeWayState) -> shared::ThreeWay {
+                    match state {
+                        ThreeWayState::NitrogenPathway => shared::ThreeWay::NitrogenPathway,
+                        ThreeWayState::FuelOxidizer => shared::ThreeWay::FuelOxidizer,
+                    }
                 }
 
                 let valves = shared::Valves {
-                    fo_fp: two_way!(states.fo_fp),
-                    fc_fp: two_way!(states.fc_fp),
-                    fc_p: two_way!(states.fc_p),
-                    fc1_f: two_way!(states.fc1_f),
-                    fo_p1: two_way!(states.fo_p1),
-                    fo2_o: two_way!(states.fo2_o),
-                    fc4_o: two_way!(states.fc4_o),
-                    fc3_o: two_way!(states.fc3_o),
-                    pv_f: three_way!(states.pv_f),
-                    pv_o: three_way!(states.pv_o),
+                    fo_fp: two_way(states.fo_fp),
+                    fc_fp: two_way(states.fc_fp),
+                    fc_p: two_way(states.fc_p),
+                    fc1_f: two_way(states.fc1_f),
+                    fo_p1: two_way(states.fo_p1),
+                    fo2_o: two_way(states.fo2_o),
+                    fc4_o: two_way(states.fc4_o),
+                    fc3_o: two_way(states.fc3_o),
+                    pv_f: three_way(states.pv_f),
+                    pv_o: three_way(states.pv_o),
                 };
-
-                *current_valves = valves;
-                drop(current_valves);
 
                 tx.send_async(vec![pi_output::Command::SetValves(valves.into())]).await?;
             },
@@ -267,11 +260,11 @@ async fn incoming(
     Ok(())
 }
 
-async fn accept_connection(cs: ConnSide<'_>) -> Result<()> {
+async fn accept_connection(cs: ConnSide) -> Result<()> {
     let ws = tokio_tungstenite::accept_async(cs.stream).await?;
     let (writer, reader) = ws.split();
 
-    try_join!(outgoing(cs.rx, writer, cs.start_time, cs.current_valves), incoming(cs.tx, reader, cs.current_valves))?;
+    try_join!(outgoing(cs.rx, writer, cs.start_time), incoming(cs.tx, reader))?;
 
     Ok(())
 }

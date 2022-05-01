@@ -39,7 +39,7 @@ mod app {
     use stm32f1xx_hal::{
         can::Can,
         gpio::{
-            gpiob::{PB0, PB1, PB10, PB11, PB12, PB15, PB2, PB3, PB4, PB5, PB6, PB7},
+            gpiob::{PB0, PB1, PB10, PB11, PB12, PB15, PB2, PB3, PB4, PB5, PB6, PB7, PB8, PB9},
             gpiod::PD12,
             Edge, ExtiPin, Input, Output, PinState, PullDown, PushPull,
         },
@@ -73,8 +73,8 @@ mod app {
         solenoid6: PB6<Output<PushPull>>,
         solenoid7: PB7<Output<PushPull>>,
         solenoid8: PB0<Output<PushPull>>,
-        // solenoid9: PB8<Output<PushPull>>,
-        // solenoid10: PB9<Output<PushPull>>,
+        solenoid9: PB8<Output<PushPull>>,
+        solenoid10: PB9<Output<PushPull>>,
 
         // These are walled-off by the arming mosfet.
         main_fuel_solenoid: PB10<Output<PushPull>>,
@@ -161,8 +161,8 @@ mod app {
             solenoid6: gpiob.pb6.into_push_pull_output(&mut gpiob.crl),
             solenoid7: gpiob.pb7.into_push_pull_output(&mut gpiob.crl),
             solenoid8: gpiob.pb0.into_push_pull_output(&mut gpiob.crl),
-            // solenoid9: gpiob.pb8.into_push_pull_output(&mut gpiob.crh),
-            // solenoid10: gpiob.pb9.into_push_pull_output(&mut gpiob.crh),
+            solenoid9: gpiob.pb8.into_push_pull_output(&mut gpiob.crh),
+            solenoid10: gpiob.pb9.into_push_pull_output(&mut gpiob.crh),
             main_fuel_solenoid: gpiob.pb10.into_push_pull_output(&mut gpiob.crh),
             main_oxidizer_solenoid: gpiob.pb11.into_push_pull_output(&mut gpiob.crh),
         };
@@ -238,7 +238,8 @@ mod app {
     #[idle]
     fn idle(_: idle::Context) -> ! {
         loop {
-            cortex_m::asm::wfi();
+            // cortex_m::asm::wfi();
+            continue;
         }
     }
 
@@ -306,36 +307,44 @@ mod app {
         valve_states.lock(|valve_states| *valve_states = Some(new_states));
 
         // This is the source of truth for mapping valves to output board connectors.
+        fn fc(v: TwoWay) -> PinState {
+            match v {
+                TwoWay::Open => PinState::High,
+                TwoWay::Closed => PinState::Low,
+            }
+        }
 
-        fn a(v: TwoWay) -> PinState {
+        fn fo(v: TwoWay) -> PinState {
             match v {
                 TwoWay::Open => PinState::Low,
                 TwoWay::Closed => PinState::High,
             }
         }
 
-        fn b(v: ThreeWay) -> PinState {
+        fn tw(v: ThreeWay) -> PinState {
             match v {
                 ThreeWay::NitrogenPathway => PinState::Low,
                 ThreeWay::FuelOxidizer => PinState::High,
             }
         }
 
-        actuation_pins.solenoid1.set_state(a(new_states.fo_fp));
-        actuation_pins.solenoid2.set_state(a(new_states.fc_fp));
-        actuation_pins.solenoid3.set_state(a(new_states.fc_p));
-        actuation_pins.solenoid4.set_state(a(new_states.fc1_f));
-        actuation_pins.solenoid5.set_state(a(new_states.fo_p1));
-        actuation_pins.solenoid6.set_state(a(new_states.fo2_o));
-        actuation_pins.solenoid7.set_state(a(new_states.fc4_o));
-        actuation_pins.solenoid8.set_state(a(new_states.fc3_o));
+        actuation_pins.solenoid1.set_state(fo(new_states.fo_fp));
+        actuation_pins.solenoid2.set_state(fc(new_states.fc_fp));
+        actuation_pins.solenoid3.set_state(fc(new_states.fc_p));
+        actuation_pins.solenoid4.set_state(fc(new_states.fc1_f));
+        actuation_pins.solenoid5.set_state(fo(new_states.fo_p1));
+        actuation_pins.solenoid6.set_state(fo(new_states.fo2_o));
+        actuation_pins.solenoid7.set_state(fc(new_states.fc4_o));
+        actuation_pins.solenoid8.set_state(fc(new_states.fc3_o));
+        actuation_pins.solenoid9.set_low();
+        actuation_pins.solenoid10.set_low();
 
         actuation_pins
             .main_fuel_solenoid
-            .set_state(b(new_states.pv_f));
+            .set_state(tw(new_states.pv_f));
         actuation_pins
             .main_oxidizer_solenoid
-            .set_state(b(new_states.pv_o));
+            .set_state(tw(new_states.pv_o));
 
         execute_commands::spawn().unwrap();
     }

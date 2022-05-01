@@ -154,13 +154,13 @@ pub struct AllSensors {
     pub pt1_f: SensorReading,
     pub pt2_f: SensorReading,
     pub pt1_e: SensorReading,
-    /// Unused
-    pub pres4: SensorReading,
     pub pt2_o: SensorReading,
-    pub pt3_o: SensorReading,
-    pub pt4_o: SensorReading,
     /// Unused
-    pub pres8: SensorReading,
+    pub pres5: SensorReading,
+    pub pt3_o: SensorReading,
+    /// Unused
+    pub pres7: SensorReading,
+    pub pt4_o: SensorReading,
     pub pt2_p: SensorReading,
 }
 

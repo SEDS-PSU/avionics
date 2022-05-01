@@ -13,8 +13,8 @@ pub struct CanBus {
 impl CanBus {
     pub fn setup() -> Result<Self> {
         let socket = CanSocket::open("can0")?;
-        socket.set_read_timeout(Duration::from_micros(1_000))?;
-        socket.set_write_timeout(Duration::from_micros(1_0000))?;
+        socket.set_read_timeout(Duration::from_micros(4_000))?;
+        socket.set_write_timeout(Duration::from_micros(4_0000))?;
 
         Ok(Self {
             socket: Rc::new(socket),

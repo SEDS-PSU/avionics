@@ -314,7 +314,8 @@ mod app {
     #[idle]
     fn idle(_: idle::Context) -> ! {
         loop {
-            cortex_m::asm::wfi();
+            // cortex_m::asm::wfi();
+            continue;
         }
     }
 
@@ -367,15 +368,15 @@ mod app {
         let load1 = l(read_adc(adc1, &mut analog_pins.load_cell1));
         let load2 = l(read_adc(adc1, &mut analog_pins.load_cell2));
 
-        let pt1_f = s(read_adc(adc1, &mut analog_pins.pressure1));
-        let pt2_f = s(read_adc(adc1, &mut analog_pins.pressure2));
-        let pt1_e = s(read_adc(adc1, &mut analog_pins.pressure3));
+        let pres1 = s(read_adc(adc1, &mut analog_pins.pressure1));
+        let pres2 = s(read_adc(adc1, &mut analog_pins.pressure2));
+        let pres3 = s(read_adc(adc1, &mut analog_pins.pressure3));
         let pres4 = s(read_adc(adc1, &mut analog_pins.pressure4));
-        let pt2_o = s(read_adc(adc1, &mut analog_pins.pressure5));
-        let pt3_o = s(read_adc(adc1, &mut analog_pins.pressure6));
-        let pt4_o = s(read_adc(adc1, &mut analog_pins.pressure7));
+        let pres5 = s(read_adc(adc1, &mut analog_pins.pressure5));
+        let pres6 = s(read_adc(adc1, &mut analog_pins.pressure6));
+        let pres7 = s(read_adc(adc1, &mut analog_pins.pressure7));
         let pres8 = s(read_adc(adc1, &mut analog_pins.pressure8));
-        let pt2_p = s(read_adc(adc1, &mut analog_pins.pressure9));
+        let pres9 = s(read_adc(adc1, &mut analog_pins.pressure9));
 
         let bat_voltage = adc1
             .read(&mut analog_pins.battery)
@@ -389,15 +390,15 @@ mod app {
             sensor_data.load1 = load1;
             sensor_data.load2 = load2;
 
-            sensor_data.pt1_f = pt1_f;
-            sensor_data.pt2_f = pt2_f;
-            sensor_data.pt1_e = pt1_e;
-            sensor_data.pres4 = pres4;
-            sensor_data.pt2_o = pt2_o;
-            sensor_data.pt3_o = pt3_o;
-            sensor_data.pt4_o = pt4_o;
-            sensor_data.pres8 = pres8;
-            sensor_data.pt2_p = pt2_p;
+            sensor_data.pt1_f = pres1;
+            sensor_data.pt2_f = pres2;
+            sensor_data.pt1_e = pres3;
+            sensor_data.pt2_o = pres4;
+            sensor_data.pres5 = pres5;
+            sensor_data.pt3_o = pres6;
+            sensor_data.pres7 = pres7;
+            sensor_data.pt4_o = pres8;
+            sensor_data.pt2_p = pres9;
 
             *bat = bat_voltage;
         });

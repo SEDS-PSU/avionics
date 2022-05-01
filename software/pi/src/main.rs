@@ -11,6 +11,17 @@ use thread_priority::{ThreadPriority, ThreadSchedulePolicy, RealtimeThreadSchedu
 use crate::{can::CanBus, boards::{OutputBoard, SensorBoard}};
 
 fn run() -> Result<()> {
+    let can_bus = CanBus::setup()?;
+    thread::sleep(Duration::from_millis(200));
+
+    can_bus.clear().context("failed to clear CAN buffer")?;
+
+    let ground_station = GroundStation::connect()?;
+    let output_board = OutputBoard::connect(can_bus.clone())?;
+    let sensor_board = SensorBoard::connect(can_bus)?;
+
+    println!("output board status: {:#?}", output_board.get_status()?);
+
     thread_priority::set_thread_priority_and_policy(
         0 as _, // current therad
         ThreadPriority::Deadline {
@@ -21,19 +32,15 @@ fn run() -> Result<()> {
         ThreadSchedulePolicy::Realtime(RealtimeThreadSchedulePolicy::Deadline),
     ).unwrap();
 
-    let can_bus = CanBus::setup()?;
-    thread::sleep(Duration::from_millis(200));
-
-    can_bus.clear().context("failed to clear CAN buffer")?;
-
-    let output_board = OutputBoard::connect(can_bus.clone())?;
-    let sensor_board = SensorBoard::connect(can_bus)?;
-
-    let ground_station = GroundStation::connect()?;
+    // loop {
+    //     let sensor_data = sensor_board.get_sensor_data()?;
+    //     println!("sensor data: {:#?}", sensor_data);
+    //     thread::sleep(Duration::from_secs(1));
+    // }
 
     loop {
-        let sensor_data = sensor_board.get_sensor_data()?;
-        ground_station.send_sensor_data(sensor_data);
+        // let sensor_data = sensor_board.get_sensor_data()?;
+        // ground_station.send_sensor_data(sensor_data);
 
         if let Some(cmds) = ground_station.read_new_commands() {
             output_board.execute_commands(&cmds)?;
