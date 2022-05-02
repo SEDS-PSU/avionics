@@ -181,7 +181,7 @@ mod app {
                 cx.device.I2C1,
                 (i2c_scl, i2c_sda),
                 &mut afio.mapr,
-                150.khz(),
+                150.khz(), // TODO: Decrease this if the devices are not responding.
                 clocks.clone(),
                 1000,
                 10,
@@ -329,9 +329,8 @@ mod app {
 
     #[task(local = [adc1, analog_pins], shared = [sensor_data, battery_millivolts])]
     fn read_adc1(cx: read_adc1::Context) {
-        // defmt::info!("read_adc1");
-
-        // let start = monotonics::now();
+        defmt::info!("entering `read_adc1`");
+        let start = monotonics::now();
 
         let read_adc1::LocalResources { adc1, analog_pins } = cx.local;
         let read_adc1::SharedResources {
@@ -403,14 +402,14 @@ mod app {
             *bat = bat_voltage;
         });
 
-        // let elapsed = monotonics::now() - start;
-        // defmt::info!("read_adc1 took {} us", elapsed.ticks() / Duration::micros(1).ticks());
+        let elapsed = monotonics::now() - start;
+        defmt::info!("leaving `read_adc1` after {} us", elapsed.ticks() / Duration::micros(1).ticks());
     }
 
     #[task(local = [thermocouples], shared = [sensor_data])]
     fn read_thermocouples(cx: read_thermocouples::Context) {
-        // defmt::info!("read_thermocouples");
-        // let start = monotonics::now();
+        defmt::info!("entering `read_thermocouples`");
+        let start = monotonics::now();
 
         let tc = cx.local.thermocouples;
         let mut sensor_data = cx.shared.sensor_data;
@@ -440,14 +439,17 @@ mod app {
             s.tc5_o = t6.unwrap_or(Temperature::new_error(SensorError::NoData));
         });
 
-        // let elapsed = monotonics::now() - start;
-        // defmt::info!("read_thermocouples took {} us", elapsed.ticks() / Duration::micros(1).ticks());
+        let elapsed = monotonics::now() - start;
+        defmt::info!("leaving `read_thermocouples` after {} us", elapsed.ticks() / Duration::micros(1).ticks());
     }
 
     /// This is fired every time the CAN controller has finished a frame transmission
     /// or after the USB_HP_CAN_TX ISR is pended.
     #[task(binds = USB_HP_CAN_TX, local = [can_tx], shared = [can_tx_queue], priority = 2)]
     fn can_tx(cx: can_tx::Context) {
+        defmt::info!("entering `can_tx`");
+        let start = monotonics::now();
+
         let mut tx_queue = cx.shared.can_tx_queue;
         let tx = cx.local.can_tx;
 
@@ -473,6 +475,9 @@ mod app {
                 }
             }
         });
+
+        let elapsed = monotonics::now() - start;
+        defmt::info!("leaving `can_tx` after {} us", elapsed.ticks() / Duration::micros(1).ticks());
     }
 
     fn enqueue_frame(queue: &mut Queue<Frame, 16>, frame: Frame) {
@@ -482,6 +487,9 @@ mod app {
 
     #[task(shared = [can_tx_queue, sensor_data, battery_millivolts], priority = 2)]
     fn send_sensor_data(cx: send_sensor_data::Context) {
+        defmt::info!("entering `send_sensor_data`");
+        let start = monotonics::now();
+
         let send_sensor_data::SharedResources {
             mut can_tx_queue,
             sensor_data,
@@ -521,6 +529,9 @@ mod app {
                 enqueue_frame(tx_queue, frame);
             }
         });
+
+        let elapsed = monotonics::now() - start;
+        defmt::info!("leaving `send_sensor_data` after {} us", elapsed.ticks() / Duration::micros(1).ticks());
     }
 
     #[task(binds = USB_LP_CAN_RX0,
@@ -530,6 +541,9 @@ mod app {
         priority = 2,
     )]
     fn can_rx0(cx: can_rx0::Context) {
+        defmt::info!("entering `can_rx0`");
+        let start = monotonics::now();
+
         let can_rx0::LocalResources { can_rx } = cx.local;
 
         loop {
@@ -564,5 +578,8 @@ mod app {
                 Err(nb::Error::Other(_)) => {} // Ignore overrun errors.
             }
         }
+
+        let elapsed = monotonics::now() - start;
+        defmt::info!("leaving `can_rx0` after {} us", elapsed.ticks() / Duration::micros(1).ticks());
     }
 }
