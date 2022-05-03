@@ -205,12 +205,10 @@ async fn outgoing(
                     sensor_data.pt4_o = pt4_o.unpack().map(|i| i as f32).ok();
                     sensor_data.pt2_p = pt2_p.unpack().map(|i| i as f32).ok();
                 }
-                SensorDataKind::FlowAndLoad(data) => {
-                    let pi_sensor::FlowAndLoad { fm_f, fm_o, load1, load2 } = data;
+                SensorDataKind::Flow(data) => {
+                    let pi_sensor::Flow{ fm_f, fm_o } = data;
                     sensor_data.fm_f = fm_f.unpack().map(|i| i as f32).ok();
                     sensor_data.fm_o = fm_o.unpack().map(|i| i as f32).ok();
-                    sensor_data.thrust_load_cell = load1.unpack().map(|i| i as f32).ok();
-                    sensor_data.nitrous_load_cell = load2.unpack().map(|i| i as f32).ok();
                 }
                 SensorDataKind::Thermo1(data) => {
                     let pi_sensor::Thermo1 { tc1_e, tc1_f, tc2_f, tc1_o  } = data;
@@ -222,6 +220,11 @@ async fn outgoing(
                 SensorDataKind::Thermo2(data) => {
                     let pi_sensor::Thermo2 { tc5_o } = data;
                     sensor_data.tc5_o = tc5_o.unpack().map(|i| i as f32).ok();
+                }
+                SensorDataKind::Load(data) => {
+                    let pi_sensor::Load { load1, load2 } = data;
+                    sensor_data.nitrous_load_cell = load1.unpack().map(|i| i as f32).ok();
+                    sensor_data.thrust_load_cell = load2.unpack().map(|i| i as f32).ok();
                 }
             }
 

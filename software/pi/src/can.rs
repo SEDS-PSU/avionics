@@ -7,9 +7,10 @@ use socketcan::{CanSocket, CanFrame};
 pub enum SensorDataKind {
     Pressure1(pi_sensor::Pressure1),
     Pressure2(pi_sensor::Pressure2),
-    FlowAndLoad(pi_sensor::FlowAndLoad),
+    Flow(pi_sensor::Flow),
     Thermo1(pi_sensor::Thermo1),
     Thermo2(pi_sensor::Thermo2),
+    Load(pi_sensor::Load),
 }
 
 pub enum CanMessage {
@@ -81,9 +82,9 @@ impl CanBus {
                         CanMessage::SensorData(SensorDataKind::Pressure2(pressure2))
                     }
                     0b00_011 => {
-                        // Id::RaspiFlowAndLoad
-                        let flow_and_load = postcard::from_bytes(&data)?;
-                        CanMessage::SensorData(SensorDataKind::FlowAndLoad(flow_and_load))
+                        // Id::RaspiFlow
+                        let flow = postcard::from_bytes(&data)?;
+                        CanMessage::SensorData(SensorDataKind::Flow(flow))
                     }
                     0b00_100 => {
                         // Id::RaspiThermo1
@@ -94,6 +95,11 @@ impl CanBus {
                         // Id::RaspiThermo2
                         let thermo2 = postcard::from_bytes(&data)?;
                         CanMessage::SensorData(SensorDataKind::Thermo2(thermo2))
+                    }
+                    0b00_110 => {
+                        // Id::RaspiLoad
+                        let load = postcard::from_bytes(&data)?;
+                        CanMessage::SensorData(SensorDataKind::Load(load))
                     }
                     _ => Err(Error::new(ErrorKind::Other, format!("unexpected CAN ID: {:0b}", frame.id())))?,
                 };
