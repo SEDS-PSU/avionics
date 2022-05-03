@@ -12,7 +12,10 @@ pub enum Id {
     RaspiOutputStatus = 0b00_000,
     RaspiPressure1 = 0b00_001,
     RaspiPressure2 = 0b00_010,
-    RaspiFlowAndLoad = 0b00_011,
+    RaspiFlow = 0b00_011,
+    RaspiThermo1 = 0b00_100,
+    RaspiThermo2 = 0b00_101,
+    RaspiLoad = 0b00_110,
     OutputBoard = 0b01_000,
     SensorBoard = 0b10_000,
 }

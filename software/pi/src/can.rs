@@ -8,6 +8,8 @@ pub enum SensorDataKind {
     Pressure1(pi_sensor::Pressure1),
     Pressure2(pi_sensor::Pressure2),
     FlowAndLoad(pi_sensor::FlowAndLoad),
+    Thermo1(pi_sensor::Thermo1),
+    Thermo2(pi_sensor::Thermo2),
 }
 
 pub enum CanMessage {
@@ -67,22 +69,32 @@ impl CanBus {
                         // Id::RaspiOutputStatus
                         let status = postcard::from_bytes(&data)?;
                         CanMessage::OutputStatus(status)
-                    },
+                    }
                     0b00_001 => {
                         // Id::RaspiPressure1
                         let pressure1 = postcard::from_bytes(&data)?;
                         CanMessage::SensorData(SensorDataKind::Pressure1(pressure1))
-                    },
+                    }
                     0b00_010 => {
                         // Id::RaspiPressure2
                         let pressure2 = postcard::from_bytes(&data)?;
                         CanMessage::SensorData(SensorDataKind::Pressure2(pressure2))
-                    },
+                    }
                     0b00_011 => {
                         // Id::RaspiFlowAndLoad
                         let flow_and_load = postcard::from_bytes(&data)?;
                         CanMessage::SensorData(SensorDataKind::FlowAndLoad(flow_and_load))
-                    },
+                    }
+                    0b00_100 => {
+                        // Id::RaspiThermo1
+                        let thermo1 = postcard::from_bytes(&data)?;
+                        CanMessage::SensorData(SensorDataKind::Thermo1(thermo1))
+                    }
+                    0b00_101 => {
+                        // Id::RaspiThermo2
+                        let thermo2 = postcard::from_bytes(&data)?;
+                        CanMessage::SensorData(SensorDataKind::Thermo2(thermo2))
+                    }
                     _ => Err(Error::new(ErrorKind::Other, format!("unexpected CAN ID: {:0b}", frame.id())))?,
                 };
                 Ok(Some(msg))

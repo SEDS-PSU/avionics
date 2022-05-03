@@ -34,22 +34,37 @@ fn run() -> Result<()> {
 
     sensor_board.start_sensing().context("failed to start sensing")?;
 
+    let mut last_sensor_data = Instant::now();
+    let mut previous_keep_alive = Instant::now();
+
     loop {
+        if previous_keep_alive.elapsed() > Duration::from_millis(500) {
+            sensor_board.start_sensing().context("failed to resume sensing")?;
+            previous_keep_alive = Instant::now();
+        }
+
         loop {
             if let Some(cmds) = ground_station.read_new_commands() {
                 output_board.execute_commands(&cmds)?;
             }
-
+            
             if let Some(msg) = can_bus.receive_msg()? {
+                last_sensor_data = Instant::now();
                 match msg {
                     CanMessage::OutputStatus(_status) => {},
                     CanMessage::SensorData(data) => {
-                        ground_station.send_sensor_data(data, Instant::now());
+                        ground_station.send_sensor_data(data, last_sensor_data);
                     }
                 }
             } else {
                 break
             }
+        }
+
+        let elapsed = last_sensor_data.elapsed();
+
+        if elapsed > Duration::from_millis(20) {
+            println!("haven't received sensor data in {:?}", elapsed);
         }
 
         // match sensor_board.get_sensor_data() {

@@ -7,6 +7,7 @@ use panic_probe as _;
 use stm32f1xx_hal as _; // memory layout
 
 mod util;
+mod hx711;
 
 const SENSOR_BOARD_ID: bxcan::StandardId =
     if let Some(id) = bxcan::StandardId::new(shared::Id::SensorBoard as u16) {
@@ -15,11 +16,11 @@ const SENSOR_BOARD_ID: bxcan::StandardId =
         panic!("SENSOR_ID is not a valid standard CAN ID");
     };
 
-#[rtic::app(device = stm32f1xx_hal::pac, dispatchers = [EXTI0, EXTI1])]
+#[rtic::app(device = stm32f1xx_hal::pac, dispatchers = [EXTI0, EXTI1, EXTI2])]
 mod app {
-    use core::fmt;
+    use core::{fmt, sync::atomic::{AtomicU16, Ordering}};
 
-    use crate::SENSOR_BOARD_ID;
+    use crate::{SENSOR_BOARD_ID, hx711::{DualHx711, Mode as Hx711Mode}};
     use bxcan::{filter::Mask32, Frame, Interrupts, Rx, StandardId, Tx};
     use embedded_hal::adc::Channel;
     use heapless::spsc::Queue;
@@ -35,29 +36,30 @@ mod app {
             gpioa::{PA0, PA1, PA2, PA3, PA4, PA5, PA6, PA7},
             gpiob::{PB0, PB1, PB6, PB7},
             gpioc::{PC0, PC1, PC2},
-            Alternate, Analog, OpenDrain,
+            Alternate, Analog, OpenDrain, PushPull, Output, Input, PullDown, PC3,
         },
         i2c::BlockingI2c,
-        pac::{Interrupt, ADC1, CAN1, I2C1, TIM2},
-        timer::MonoTimer,
+        pac::{Interrupt, ADC1, CAN1, I2C1, TIM1, TIM2},
+        timer::{MonoTimerUs, DelayUs},
         prelude::*,
     };
 
     const FREQUENCY: u32 = 36_000_000; // Hz
 
-    type Instant = fugit::Instant<u32, 1, FREQUENCY>;
-    type Duration = fugit::Duration<u32, 1, FREQUENCY>;
+    // Granularity of one microsecond
+    type Instant = fugit::Instant<u32, 1, 1_000_000>;
+    // type Duration = fugit::Duration<u32, 1, 1_000_000>;
 
     // The monotonic scheduler type
-    #[monotonic(binds = SysTick, default = true)]
-    type Mono = MonoTimer<TIM2, FREQUENCY>;
+    #[monotonic(binds = TIM2, default = true)]
+    type Mono = MonoTimerUs<TIM2>;
 
     type I2c1 = BlockingI2c<I2C1, (PB6<Alternate<OpenDrain>>, PB7<Alternate<OpenDrain>>)>;
     type I2c1Proxy = shared_bus::I2cProxy<'static, shared_bus::AtomicCheckMutex<I2c1>>;
 
     pub struct AnalogPins {
-        load_cell1: PA0<Analog>,
-        load_cell2: PA1<Analog>,
+        // load_cell1: PA0<Analog>,
+        // load_cell2: PA1<Analog>,
 
         pressure1: PA6<Analog>,
         pressure2: PA7<Analog>,
@@ -92,6 +94,10 @@ mod app {
         can_tx_queue: Queue<Frame, 32>,
 
         battery_millivolts: Option<u16>,
+
+        fast_sensing_ms_remaining: AtomicU16,
+        medium_sensing_ms_remaining: AtomicU16,
+        slow_sensing_ms_remaining: AtomicU16,
     }
 
     // Local resources go here
@@ -103,6 +109,12 @@ mod app {
         adc1: Adc<ADC1>,
         analog_pins: AnalogPins,
         thermocouples: Thermocouples,
+        dual_hx711: Option<DualHx711<
+            DelayUs<TIM1>,
+            PA0<Input<PullDown>>,
+            PA1<Input<PullDown>>,
+            PC3<Output<PushPull>>,
+        >>,
     }
 
     #[init]
@@ -128,8 +140,10 @@ mod app {
             .pclk1(9.MHz())
             .freeze(&mut flash.acr);
 
+        let tim1 = cx.device.TIM1;
         let tim2 = cx.device.TIM2;
-        let mono = tim2.monotonic(&clocks);
+        let delay = tim1.delay(&clocks);
+        let mut mono = tim2.monotonic(&clocks);
 
         // Set up CAN bus.
         // Based on https://github.com/stm32-rs/stm32f1xx-hal/blob/master/examples/can-rtic.rs.
@@ -146,9 +160,6 @@ mod app {
         let mut gpioc = cx.device.GPIOC.split();
 
         let analog_pins = AnalogPins {
-            load_cell1: gpioa.pa0.into_analog(&mut gpioa.crl),
-            load_cell2: gpioa.pa1.into_analog(&mut gpioa.crl),
-
             pressure1: gpioa.pa6.into_analog(&mut gpioa.crl),
             pressure2: gpioa.pa7.into_analog(&mut gpioa.crl),
             pressure3: gpiob.pb0.into_analog(&mut gpiob.crl),
@@ -254,6 +265,17 @@ mod app {
             ),
         };
 
+        let dual_hx711 = DualHx711::new(
+            delay,
+            gpioa.pa0.into_pull_down_input(&mut gpioa.crl),
+            gpioa.pa1.into_pull_down_input(&mut gpioa.crl),
+            gpioc.pc3.into_push_pull_output(&mut gpioc.crl),
+            Hx711Mode::ChAGain128,
+        ).map_err(|e| {
+            defmt::error!("failed to initialize dual HX711: {:?}", e);
+            ()
+        }).ok();
+
         let can_rx_pin = gpioa.pa11.into_floating_input(&mut gpioa.crh);
         let can_tx_pin = gpioa.pa12.into_alternate_push_pull(&mut gpioa.crh);
 
@@ -280,16 +302,21 @@ mod app {
         let (can_tx, can_rx) = can.split();
 
         // Set up monotonic scheduler.
-        let mut dcb = cx.core.DCB;
-        let systick = cx.core.SYST;
+        // let mut dcb = cx.core.DCB;
+        // let systick = cx.core.SYST;
 
         // let mut mono = DwtSystick::new(&mut dcb, dwt, systick, clocks.sysclk().0);
 
-        // Setup the monotonic timer
+        fast_sensor_poll::spawn(mono.now()).unwrap();
+        slow_sensor_poll::spawn(mono.now()).unwrap();
+
         (
             Shared {
                 can_tx_queue: Queue::new(),
                 battery_millivolts: None,
+                fast_sensing_ms_remaining: AtomicU16::new(0),
+                medium_sensing_ms_remaining: AtomicU16::new(0),
+                slow_sensing_ms_remaining: AtomicU16::new(0),
             },
             Local {
                 can_tx,
@@ -299,6 +326,8 @@ mod app {
                 analog_pins,
 
                 thermocouples,
+
+                dual_hx711,
             },
             init::Monotonics(mono),
         )
@@ -328,15 +357,26 @@ mod app {
 
     /// Runs every 10 ms.
     #[task(
+        priority = 3,
         local = [adc1, analog_pins],
-        shared = [can_tx_queue],
+        shared = [can_tx_queue, &fast_sensing_ms_remaining],
     )]
     fn fast_sensor_poll(cx: fast_sensor_poll::Context, instant: Instant) {
         let fast_sensor_poll::LocalResources { adc1, analog_pins } = cx.local;
         let fast_sensor_poll::SharedResources {
             mut can_tx_queue,
+            fast_sensing_ms_remaining,
         } = cx.shared;
 
+        let next_instant = instant + 10.millis();
+        fast_sensor_poll::spawn_at(next_instant, next_instant).unwrap();
+
+        if fast_sensing_ms_remaining.load(Ordering::SeqCst) < 10 {
+            return;
+        }
+
+        defmt::info!("fast_sensor_poll");
+        
         fn read_adc(adc: &mut Adc<ADC1>, pin: &mut impl Channel<ADC1, ID = u8>) -> Result<u16, ()> {
             let mut acc = 0u32;
             for _ in 0..4 {
@@ -352,19 +392,8 @@ mod app {
             Err(_) => SensorReading::new_error(SensorError::Unknown),
         };
 
-        let l = |res| match res {
-            Ok(v) => Force::new(v),
-            Err(_) => Force::new_error(SensorError::Unknown),
-        };
-
-        // This is the source of truth for these sensor to pin mappings.
-
         let fm_f = s(read_adc(adc1, &mut analog_pins.flow1));
         let fm_o = s(read_adc(adc1, &mut analog_pins.flow2));
-
-        // TODO: Do conversions into newtons.
-        let load1 = l(read_adc(adc1, &mut analog_pins.load_cell1));
-        let load2 = l(read_adc(adc1, &mut analog_pins.load_cell2));
 
         fn pt_to_psig(reading: u16) -> Pressure {
             // The reading should range from ~496 to ~2480, which corresponds
@@ -406,11 +435,9 @@ mod app {
             pt2_p: pres9,
         };
 
-        let flow_and_load = pi_sensor::FlowAndLoad {
+        let flow = pi_sensor::Flow {
             fm_f,
             fm_o,
-            load1,
-            load2,
         };
 
         let mut buf = [0u8; 8];
@@ -424,7 +451,7 @@ mod app {
 
         let frame1 = serialize!(Id::RaspiPressure1, pressure1_data);
         let frame2 = serialize!(Id::RaspiPressure2, pressure2_data);
-        let frame3 = serialize!(Id::RaspiFlowAndLoad, flow_and_load);
+        let frame3 = serialize!(Id::RaspiFlow, flow);
 
         can_tx_queue.lock(|tx| {
             enqueue_frame(tx, frame1);
@@ -432,20 +459,97 @@ mod app {
             enqueue_frame(tx, frame3);
         });
 
-        let next_instant = instant + Duration::millis(10);
-        fast_sensor_poll::spawn_at(next_instant, next_instant).unwrap();
+        fast_sensing_ms_remaining.fetch_sub(10, Ordering::SeqCst);
+
+        defmt::info!("fast_sensor_poll done");
     }
 
-    /// Runs every 10 ms.
+    /// Runs every 20 ms.
     #[task(
+        priority = 2,
+        local = [dual_hx711],
+        shared = [can_tx_queue, &medium_sensing_ms_remaining],
+    )]
+    fn medium_sensor_poll(cx: medium_sensor_poll::Context, instant: Instant) {
+        let medium_sensor_poll::LocalResources { dual_hx711 } = cx.local;
+        let medium_sensor_poll::SharedResources {
+            mut can_tx_queue,
+            medium_sensing_ms_remaining,
+        } = cx.shared;
+
+        let next_instant = instant + 20.millis();
+        medium_sensor_poll::spawn_at(next_instant, next_instant).unwrap();
+
+        if medium_sensing_ms_remaining.load(Ordering::SeqCst) < 20 {
+            return;
+        }
+
+        defmt::info!("medium_sensor_poll");
+
+        let samples = dual_hx711
+            .as_mut()
+            .map(|dual_hx711| dual_hx711.retrieve())
+            .transpose()
+            .ok()
+            .flatten();
+
+        if let Some((load1, load2)) = samples {
+            let load1 = if let Ok(load1) = load1.try_into() {
+                Force::new(load1)
+            } else {
+                Force::new_error(SensorError::OutOfRange)
+            };
+            let load2 = if let Ok(load2) = load2.try_into() {
+                Force::new(load2)
+            } else {
+                Force::new_error(SensorError::OutOfRange)
+            };
+
+            let load = pi_sensor::Load {
+                load1,
+                load2,
+            };
+
+            let mut buf = [0u8; 8];
+
+            macro_rules! serialize {
+                ($id:expr, $data:expr) => {{
+                    let slice = postcard::to_slice(&$data, &mut buf).expect("failed to serialize");
+                    bxcan::Frame::new_data(can_id($id), bxcan::Data::new(slice).unwrap())
+                }};
+            }
+
+            let frame = serialize!(Id::RaspiLoad, load);
+            can_tx_queue.lock(|tx_queue| {
+                enqueue_frame(tx_queue, frame);
+            });
+        }
+
+        medium_sensing_ms_remaining.fetch_sub(20, Ordering::SeqCst);
+        defmt::info!("medium_sensor_poll done");
+    }
+
+    /// Runs every 50 ms.
+    #[task(
+        priority = 1,
         local = [thermocouples],
-        shared = [can_tx_queue],
+        shared = [can_tx_queue, &slow_sensing_ms_remaining],
     )]
     fn slow_sensor_poll(cx: slow_sensor_poll::Context, instant: Instant) {
         let slow_sensor_poll::LocalResources { thermocouples } = cx.local;
         let slow_sensor_poll::SharedResources {
             mut can_tx_queue,
+            slow_sensing_ms_remaining,
         } = cx.shared;
+
+        let next_instant = instant + 50.millis();
+        slow_sensor_poll::spawn_at(next_instant, next_instant).unwrap();
+
+        if slow_sensing_ms_remaining.load(Ordering::SeqCst) < 50 {
+            return;
+        }
+
+        defmt::info!("slow_sensor_poll");
 
         // Thermocouples
 
@@ -456,22 +560,47 @@ mod app {
             })
         };
 
-        let t1 = c(thermocouples.thermo1.as_mut().map(|t1| t1.read()));
-        let t2 = c(thermocouples.thermo2.as_mut().map(|t2| t2.read()));
-        let t3 = c(thermocouples.thermo3.as_mut().map(|t3| t3.read()));
-        let t4 = c(thermocouples.thermo4.as_mut().map(|t4| t4.read()));
-        let t5 = c(thermocouples.thermo5.as_mut().map(|t5| t5.read()));
-        let t6 = c(thermocouples.thermo6.as_mut().map(|t6| t6.read()));
+        let t1 = c(thermocouples.thermo1.as_mut().map(|t1| t1.read()))
+            .unwrap_or(Temperature::new_error(SensorError::NoData));
+        // let t2 = c(thermocouples.thermo2.as_mut().map(|t2| t2.read()))
+        //     .unwrap_or(Temperature::new_error(SensorError::NoData));
+        let t3 = c(thermocouples.thermo3.as_mut().map(|t3| t3.read()))
+            .unwrap_or(Temperature::new_error(SensorError::NoData));
+        let t4 = c(thermocouples.thermo4.as_mut().map(|t4| t4.read()))
+            .unwrap_or(Temperature::new_error(SensorError::NoData));
+        let t5 = c(thermocouples.thermo5.as_mut().map(|t5| t5.read()))
+            .unwrap_or(Temperature::new_error(SensorError::NoData));
+        let t6 = c(thermocouples.thermo6.as_mut().map(|t6| t6.read()))
+            .unwrap_or(Temperature::new_error(SensorError::NoData));
 
-        //         sensor_data.tc1_e = t1.unwrap_or(Temperature::new_error(SensorError::NoData));
-        //         sensor_data.thermo2 = t2.unwrap_or(Temperature::new_error(SensorError::NoData));
-        //         sensor_data.tc1_f = t3.unwrap_or(Temperature::new_error(SensorError::NoData));
-        //         sensor_data.tc2_f = t4.unwrap_or(Temperature::new_error(SensorError::NoData));
-        //         sensor_data.tc1_o = t5.unwrap_or(Temperature::new_error(SensorError::NoData));
-        //         sensor_data.tc5_o = t6.unwrap_or(Temperature::new_error(SensorError::NoData));
+        let mut buf = [0u8; 8];
 
-        let next_instant = instant + Duration::millis(80);
-        fast_sensor_poll::spawn_at(next_instant, next_instant).unwrap();
+        macro_rules! serialize {
+            ($id:expr, $data:expr) => {{
+                let slice = postcard::to_slice(&$data, &mut buf).expect("failed to serialize");
+                bxcan::Frame::new_data(can_id($id), bxcan::Data::new(slice).unwrap())
+            }};
+        }
+
+        let thermo1 = pi_sensor::Thermo1 {
+            tc1_e: t1,
+            tc1_f: t3,
+            tc2_f: t4,
+            tc1_o: t5
+        };
+        let thermo2 = pi_sensor::Thermo2 { tc5_o: t6 };
+
+        let frame1 = serialize!(Id::RaspiThermo1, thermo1);
+        let frame2 = serialize!(Id::RaspiThermo2, thermo2);
+
+        can_tx_queue.lock(|tx_queue| {
+            enqueue_frame(tx_queue, frame1);
+            enqueue_frame(tx_queue, frame2);
+        });
+
+        slow_sensing_ms_remaining.fetch_sub(50, Ordering::SeqCst);
+
+        defmt::info!("slow_sensor_poll done");
     }
 
     // #[task(
@@ -593,7 +722,12 @@ mod app {
 
     /// This is fired every time the CAN controller has finished a frame transmission
     /// or after the USB_HP_CAN_TX ISR is pended.
-    #[task(binds = USB_HP_CAN_TX, local = [can_tx], shared = [can_tx_queue], priority = 2)]
+    #[task(
+        binds = USB_HP_CAN_TX,
+        priority = 4,
+        local = [can_tx],
+        shared = [can_tx_queue]
+    )]
     fn can_tx(cx: can_tx::Context) {
         let mut tx_queue = cx.shared.can_tx_queue;
         let tx = cx.local.can_tx;
@@ -608,9 +742,11 @@ mod app {
                             // Frame was placed in a transmit buffer.
                             tx_queue.dequeue();
                         }
-                        Some(_pending_frame) => {
-                            // A lower priority frame was replaced with our higher-priority frame.
-                            unreachable!()
+                        Some(pending_frame) => {
+                            // A lower priority frame was replaced with our high priority frame.
+                            // Put the low priority frame back in the transmit queue.
+                            tx_queue.dequeue();
+                            enqueue_frame(tx_queue, pending_frame.clone());
                         }
                     },
                     Err(nb::Error::WouldBlock) => {
@@ -651,14 +787,23 @@ mod app {
     //     });
     // }
 
-    #[task(binds = USB_LP_CAN_RX0,
+    #[task(
+        binds = USB_LP_CAN_RX0,
+        priority = 4,
         local = [
             can_rx,
         ],
-        priority = 2,
+        shared = [
+            &fast_sensing_ms_remaining,
+            &slow_sensing_ms_remaining,
+        ]
     )]
     fn can_rx0(cx: can_rx0::Context) {
         let can_rx0::LocalResources { can_rx } = cx.local;
+        let can_rx0::SharedResources {
+            fast_sensing_ms_remaining,
+            slow_sensing_ms_remaining,
+        } = cx.shared;
 
         loop {
             match can_rx.receive() {
@@ -678,7 +823,8 @@ mod app {
 
                     match request {
                         pi_sensor::Request::StartSensing => {
-                            fast_sensor_poll::spawn(monotonics::now()).expect("failed to spawn `fast_sensor_poll`")
+                            fast_sensing_ms_remaining.store(1000, Ordering::SeqCst);
+                            slow_sensing_ms_remaining.store(1000, Ordering::SeqCst);
                         }
                         pi_sensor::Request::Reset => {
                             defmt::info!("resetting");

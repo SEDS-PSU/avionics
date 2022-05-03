@@ -212,6 +212,17 @@ async fn outgoing(
                     sensor_data.thrust_load_cell = load1.unpack().map(|i| i as f32).ok();
                     sensor_data.nitrous_load_cell = load2.unpack().map(|i| i as f32).ok();
                 }
+                SensorDataKind::Thermo1(data) => {
+                    let pi_sensor::Thermo1 { tc1_e, tc1_f, tc2_f, tc1_o  } = data;
+                    sensor_data.tc1_e = tc1_e.unpack().map(|i| i as f32).ok();
+                    sensor_data.tc1_f = tc1_f.unpack().map(|i| i as f32).ok();
+                    sensor_data.tc2_f = tc2_f.unpack().map(|i| i as f32).ok();
+                    sensor_data.tc1_o = tc1_o.unpack().map(|i| i as f32).ok();
+                }
+                SensorDataKind::Thermo2(data) => {
+                    let pi_sensor::Thermo2 { tc5_o } = data;
+                    sensor_data.tc5_o = tc5_o.unpack().map(|i| i as f32).ok();
+                }
             }
 
             update_count += 1;

@@ -6,11 +6,9 @@ use serde::{Serialize, Deserialize};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Deserialize, Serialize, postcard::MaxSize)]
 pub enum Request {
-    // /// The sensor board should respond with 6 frames.
-    // /// The first contains the general status of the sensor board.
-    // /// The following 5 frames each contain four sensor readings.
-    // GetSensorData,
     /// Start sending data from the sensor board to the pi.
+    /// This will continue for 1 second, and the pi should resend
+    /// this before that time elapses for the sensing to continue.
     StartSensing,
     /// The sensor board should reset itself.
     Reset,
@@ -117,24 +115,47 @@ pub struct Force(SensorReading);
 const _: () = assert!(<Force as postcard::MaxSize>::POSTCARD_MAX_SIZE == 2);
 
 impl Force {
-    pub const fn new(newtons: u16) -> Self {
-        Self(SensorReading::new(newtons))
+    pub const fn new(lbf: i16) -> Self {
+        let abs = if let Some(abs) = lbf.checked_abs() {
+            abs as u16
+        } else {
+            return Self(SensorReading::new_error(SensorError::OutOfRange));
+        };
+
+        if abs > 0b0011_1111_1111_1111 {
+            return Self(SensorReading::new_error(SensorError::OutOfRange));
+        }
+
+        let signed = if lbf < 0 {
+            1 << 14 | abs
+        } else {
+            abs
+        };
+
+        Self(SensorReading::new(signed))
     }
 
     pub const fn new_error(error: SensorError) -> Self {
         Self(SensorReading::new_error(error))
     }
 
-    /// Return the force in Newtons.
-    pub fn unpack(self) -> Result<u16, SensorError> {
-        self.0.unpack()
+    /// Return the force in lbf.
+    pub fn unpack(self) -> Result<i16, SensorError> {
+        let raw = self.0.unpack()?;
+        let signed = raw & (1 << 14) != 0;
+        let abs = raw & 0b0011_1111_1111_1111;
+        Ok(if signed {
+            -(abs as i16)
+        } else {
+            abs as i16
+        })
     }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Default, Deserialize, Serialize, postcard::MaxSize)]
 pub struct Pressure(SensorReading);
 
-const _: () = assert!(<Force as postcard::MaxSize>::POSTCARD_MAX_SIZE == 2);
+const _: () = assert!(<Pressure as postcard::MaxSize>::POSTCARD_MAX_SIZE == 2);
 
 impl Pressure {
     /// Recieves the pressure in PSIG.
@@ -172,14 +193,12 @@ pub struct Pressure2 {
 const _: () = assert!(<Pressure2 as postcard::MaxSize>::POSTCARD_MAX_SIZE == 6);
 
 #[derive(Deserialize, Serialize, postcard::MaxSize)]
-pub struct FlowAndLoad {
+pub struct Flow {
     pub fm_f: SensorReading,
     pub fm_o: SensorReading,
-    pub load1: Force,
-    pub load2: Force,
 }
 
-const _: () = assert!(<FlowAndLoad as postcard::MaxSize>::POSTCARD_MAX_SIZE == 8);
+const _: () = assert!(<Flow as postcard::MaxSize>::POSTCARD_MAX_SIZE <= 8);
 
 #[derive(Deserialize, Serialize, postcard::MaxSize)]
 pub struct Thermo1 {
@@ -196,7 +215,15 @@ pub struct Thermo2 {
     pub tc5_o: Temperature,
 }
 
-const _: () = assert!(<Thermo2 as postcard::MaxSize>::POSTCARD_MAX_SIZE == 2);
+const _: () = assert!(<Thermo2 as postcard::MaxSize>::POSTCARD_MAX_SIZE <= 8);
+
+#[derive(Deserialize, Serialize, postcard::MaxSize)]
+pub struct Load {
+    pub load1: Force,
+    pub load2: Force,
+}
+
+const _: () = assert!(<Load as postcard::MaxSize>::POSTCARD_MAX_SIZE <= 8);
 
 // #[derive(Clone, Default, Deserialize, Serialize, postcard::MaxSize, Debug)]
 // pub struct AllSensors {
