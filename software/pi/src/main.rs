@@ -2,13 +2,13 @@ mod ground_station;
 mod can;
 mod boards;
 
-use std::{time::Duration, fs::OpenOptions, io::Write, thread};
+use std::{time::{Duration, Instant}, fs::OpenOptions, io::Write, thread};
 
-use anyhow::{Result, Context, Ok};
+use anyhow::{Result, Context};
 use ground_station::GroundStation;
 use thread_priority::{ThreadPriority, ThreadSchedulePolicy, RealtimeThreadSchedulePolicy};
 
-use crate::{can::CanBus, boards::{OutputBoard, SensorBoard}};
+use crate::{can::{CanBus, CanMessage}, boards::{OutputBoard, SensorBoard}};
 
 fn run() -> Result<()> {
     let can_bus = CanBus::setup()?;
@@ -18,7 +18,7 @@ fn run() -> Result<()> {
 
     let ground_station = GroundStation::connect()?;
     let output_board = OutputBoard::connect(can_bus.clone())?;
-    let sensor_board = SensorBoard::connect(can_bus)?;
+    let sensor_board = SensorBoard::connect(can_bus.clone())?;
 
     println!("output board status: {:#?}", output_board.get_status()?);
 
@@ -32,19 +32,44 @@ fn run() -> Result<()> {
         ThreadSchedulePolicy::Realtime(RealtimeThreadSchedulePolicy::Deadline),
     ).unwrap();
 
-    // loop {
-    //     let sensor_data = sensor_board.get_sensor_data()?;
-    //     println!("sensor data: {:#?}", sensor_data);
-    //     thread::sleep(Duration::from_secs(1));
-    // }
+    sensor_board.start_sensing().context("failed to start sensing")?;
 
     loop {
-        // let sensor_data = sensor_board.get_sensor_data()?;
-        // ground_station.send_sensor_data(sensor_data);
+        loop {
+            if let Some(cmds) = ground_station.read_new_commands() {
+                output_board.execute_commands(&cmds)?;
+            }
 
-        if let Some(cmds) = ground_station.read_new_commands() {
-            output_board.execute_commands(&cmds)?;
+            if let Some(msg) = can_bus.receive_msg()? {
+                match msg {
+                    CanMessage::OutputStatus(_status) => {},
+                    CanMessage::SensorData(data) => {
+                        ground_station.send_sensor_data(data, Instant::now());
+                    }
+                }
+            } else {
+                break
+            }
         }
+
+        // match sensor_board.get_sensor_data() {
+        //     Ok(sensor_data) => {
+        //         ground_station.send_sensor_data(sensor_data);
+        //     }
+        //     Err(e) => {
+        //         eprintln!("failed to read sensor data, attempting to reset the board and clear the buffers: {:?}", e);
+        //         let _ = sensor_board.reset();
+        //         let _ = can_bus.clear();
+        //     }
+        // }
+
+        // if let Some(cmds) = ground_station.read_new_commands() {
+        //     output_board.execute_commands(&cmds)?;
+        // } else {
+        //     if let Err(e) = output_board.get_status() {
+        //         eprintln!("failed to read output board status: {:?}", e);
+        //     }
+        // }
 
         // Yield until the next period.
         thread::yield_now();

@@ -14,7 +14,7 @@ const FREQUENCY: u32 = 36_000_000; // Hz
 // type Instant = fugit::Instant<u32, 1, FREQUENCY>;
 type Duration = fugit::Duration<u32, 1, FREQUENCY>;
 
-const RASPI_ID: bxcan::StandardId = if let Some(id) = bxcan::StandardId::new(shared::Id::Raspi as u16) {
+const RASPI_ID_OUTPUT_STATUS: bxcan::StandardId = if let Some(id) = bxcan::StandardId::new(shared::Id::RaspiOutputStatus as u16) {
     id
 } else {
     panic!("RASPI_ID is not a valid standard CAN ID");
@@ -48,7 +48,7 @@ mod app {
         prelude::*,
     };
 
-    use crate::RASPI_ID;
+    use crate::RASPI_ID_OUTPUT_STATUS;
 
     // The monotonic scheduler type
     #[monotonic(binds = SysTick, default = true)]
@@ -417,7 +417,7 @@ mod app {
             return;
         }
 
-        let frame = bxcan::Frame::new_data(RASPI_ID, data);
+        let frame = bxcan::Frame::new_data(RASPI_ID_OUTPUT_STATUS, data);
 
         let mut tx_queue = cx.shared.can_tx_queue;
 

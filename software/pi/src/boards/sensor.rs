@@ -1,6 +1,6 @@
 use std::{thread, time::Duration};
 
-use shared::{Id, pi_sensor::{Request, ResponseHeader, AllSensors}};
+use shared::{Id, pi_sensor::Request};
 
 use crate::can::CanBus;
 use anyhow::{Result, Context};
@@ -27,14 +27,17 @@ impl SensorBoard {
         Ok(())
     }
 
-    pub fn get_sensor_data(&self) -> Result<AllSensors> {
-        self.can_bus.send(Id::SensorBoard, Request::GetSensorData)?;
-
-        let _header: ResponseHeader = self.can_bus.receive()?;
-
-        let buf = self.can_bus.recieve_buf::<{8 * 5}>()?;
-        let sensors = postcard::from_bytes(&buf)?;
-
-        Ok(sensors)
+    pub fn start_sensing(&self) -> Result<()> {
+        self.can_bus.send(Id::SensorBoard, Request::StartSensing)?;
+        Ok(())
     }
+
+    // pub fn get_sensor_data(&self) -> Result<AllSensors> {
+    //     self.can_bus.send(Id::SensorBoard, Request::GetSensorData)?;
+
+    //     let buf = self.can_bus.recieve_buf::<{8 * 5}>()?;
+    //     let sensors = postcard::from_bytes(&buf)?;
+
+    //     Ok(sensors)
+    // }
 }

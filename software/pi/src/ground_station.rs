@@ -1,10 +1,13 @@
-use std::{thread::{self, JoinHandle}, time::Instant};
+use std::{thread::{self, JoinHandle}, time::{Instant, Duration}, sync::Arc};
 use futures_util::{StreamExt, try_join, SinkExt, Sink, Stream};
 use shared::{pi_sensor, pi_output};
 use tokio::{net::{TcpListener, TcpStream}, task, runtime};
 use tungstenite::Message;
 use anyhow::{Result, Context};
 use serde::{Serialize, Deserialize};
+use atomicring::AtomicRingBuffer;
+
+use crate::can::SensorDataKind;
 
 #[derive(Debug, Deserialize, Serialize)]
 enum TwoWayState {
@@ -54,7 +57,7 @@ enum Command {
     Ignite,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Default, Deserialize, Serialize)]
 struct SensorData {
     #[serde(rename = "TIMESTAMP")]
     timestamp: u32,
@@ -94,8 +97,8 @@ struct SensorData {
 
 pub struct GroundStation {
     _handle: JoinHandle<()>,
-    tx: flume::Sender<pi_sensor::AllSensors>,
-    rx: flume::Receiver<Vec<pi_output::Command>>,
+    sensor_to_gs: Arc<AtomicRingBuffer<(SensorDataKind, Instant)>>,
+    gs_to_output: Arc<AtomicRingBuffer<Vec<pi_output::Command>>>,
 }
 
 impl GroundStation {
@@ -103,38 +106,48 @@ impl GroundStation {
     /// would connect to that as a client (over UDP). However, the test-stand hosting the server itself
     /// is easier given current constraints.
     pub fn connect() -> Result<GroundStation> {
-        let (in_tx, in_rx) = flume::unbounded();
-        let (out_tx, out_rx) = flume::unbounded();
+        let sensor_to_gs = Arc::new(AtomicRingBuffer::with_capacity(16));
+        let gs_to_output = Arc::new(AtomicRingBuffer::with_capacity(1));
+
+        let a = Arc::clone(&sensor_to_gs);
+        let b = Arc::clone(&gs_to_output);
 
         let handle = thread::spawn(move || {
-            run_ground_station(out_tx, in_rx).unwrap();
+            run_ground_station(a, b).unwrap();
         });
 
         Ok(Self {
             _handle: handle,
-            tx: in_tx,
-            rx: out_rx,
+            sensor_to_gs,
+            gs_to_output,
         })
     }
 
-    pub fn send_sensor_data(&self, data: pi_sensor::AllSensors) {
-        self.tx.send(data).expect("this should never fail");
+    pub fn send_sensor_data(&self, data: SensorDataKind, ts: Instant) {
+        self.sensor_to_gs.push_overwrite((data, ts));
     }
 
     pub fn read_new_commands(&self) -> Option<Vec<pi_output::Command>> {
-        self.rx.try_recv().ok()
+        self.gs_to_output.try_pop()
     }
 }
 
 struct ConnSide {
     stream: TcpStream,
-    tx: flume::Sender<Vec<pi_output::Command>>,
-    rx: flume::Receiver<pi_sensor::AllSensors>,
+    sensor_to_gs: Arc<AtomicRingBuffer<(SensorDataKind, Instant)>>,
+    gs_to_output: Arc<AtomicRingBuffer<Vec<pi_output::Command>>>,
     start_time: Instant,
 }
 
-fn run_ground_station(tx: flume::Sender<Vec<pi_output::Command>>, rx: flume::Receiver<pi_sensor::AllSensors>) -> Result<()> {
-    let rt = runtime::Builder::new_current_thread().enable_io().build()?;
+fn run_ground_station(
+    sensor_to_gs: Arc<AtomicRingBuffer<(SensorDataKind, Instant)>>,
+    gs_to_output: Arc<AtomicRingBuffer<Vec<pi_output::Command>>>
+) -> Result<()> {
+    let rt = runtime::Builder::new_current_thread()
+        .enable_io()
+        .enable_time()
+        .build()?;
+
     let local = task::LocalSet::new();
 
     let start_time = Instant::now();
@@ -148,8 +161,8 @@ fn run_ground_station(tx: flume::Sender<Vec<pi_output::Command>>, rx: flume::Rec
 
             let conn_side = ConnSide {
                 stream,
-                tx: tx.clone(),
-                rx: rx.clone(),
+                sensor_to_gs: Arc::clone(&sensor_to_gs),
+                gs_to_output: Arc::clone(&gs_to_output),
                 start_time,
             };
             
@@ -163,37 +176,55 @@ fn run_ground_station(tx: flume::Sender<Vec<pi_output::Command>>, rx: flume::Rec
 }
 
 async fn outgoing(
-    rx: flume::Receiver<pi_sensor::AllSensors>,
+    sensor_to_gs: Arc<AtomicRingBuffer<(SensorDataKind, Instant)>>,
     mut writer: impl Sink<Message, Error = tungstenite::Error> + Unpin,
     start_time: Instant,
 ) -> Result<()> {
-    while let Ok(sensors) = rx.recv_async().await {
-        let sensor_data = SensorData {
-            timestamp: start_time.elapsed().as_millis() as u32,
-            pt1_f: sensors.pt1_f.unpack().map(|i| i as f32).ok(),
-            pt2_f: sensors.pt2_f.unpack().map(|i| i as f32).ok(),
-            pt2_o: sensors.pt2_o.unpack().map(|i| i as f32).ok(),
-            pt3_o: sensors.pt3_o.unpack().map(|i| i as f32).ok(),
-            pt4_o: sensors.pt4_o.unpack().map(|i| i as f32).ok(),
-            pt2_p: sensors.pt2_p.unpack().map(|i| i as f32).ok(),
-            pt1_e: sensors.pt1_e.unpack().map(|i| i as f32).ok(),
-            tc1_f: sensors.tc1_f.unpack().map(|i| i as f32).ok(),
-            tc2_f: sensors.tc2_f.unpack().map(|i| i as f32).ok(),
-            tc1_o: sensors.tc1_o.unpack().map(|i| i as f32).ok(),
-            tc5_o: sensors.tc5_o.unpack().map(|i| i as f32).ok(),
-            tc1_e: sensors.tc1_e.unpack().map(|i| i as f32).ok(),
-            fm_f: sensors.fm_f.unpack().map(|i| i as f32).ok(),
-            fm_o: sensors.fm_o.unpack().map(|i| i as f32).ok(),
-            thrust_load_cell: sensors.load1.unpack().map(|i| i as f32).ok(),
-            nitrous_load_cell: sensors.load2.unpack().map(|i| i as f32).ok(),
-        };
+    let mut most_recent_update_time = start_time;
+
+    let mut interval = tokio::time::interval(Duration::from_millis(20));
+
+    loop {
+        interval.tick().await;
+
+        let mut sensor_data = SensorData::default();
+        let mut update_count = 0;
+        while let Some((sensor_update, ts)) = sensor_to_gs.try_pop() {
+            most_recent_update_time = ts;
+            match sensor_update {
+                SensorDataKind::Pressure1(data) => {
+                    let pi_sensor::Pressure1 { pt1_f, pt2_f, pt1_e, pt2_o } = data;
+                    sensor_data.pt1_f = pt1_f.unpack().map(|i| i as f32).ok();
+                    sensor_data.pt2_f = pt2_f.unpack().map(|i| i as f32).ok();
+                    sensor_data.pt1_e = pt1_e.unpack().map(|i| i as f32).ok();
+                    sensor_data.pt2_o = pt2_o.unpack().map(|i| i as f32).ok();
+                }
+                SensorDataKind::Pressure2(data) => {
+                    let pi_sensor::Pressure2 { pt3_o, pt4_o, pt2_p  } = data;
+                    sensor_data.pt3_o = pt3_o.unpack().map(|i| i as f32).ok();
+                    sensor_data.pt4_o = pt4_o.unpack().map(|i| i as f32).ok();
+                    sensor_data.pt2_p = pt2_p.unpack().map(|i| i as f32).ok();
+                }
+                SensorDataKind::FlowAndLoad(data) => {
+                    let pi_sensor::FlowAndLoad { fm_f, fm_o, load1, load2 } = data;
+                    sensor_data.fm_f = fm_f.unpack().map(|i| i as f32).ok();
+                    sensor_data.fm_o = fm_o.unpack().map(|i| i as f32).ok();
+                    sensor_data.thrust_load_cell = load1.unpack().map(|i| i as f32).ok();
+                    sensor_data.nitrous_load_cell = load2.unpack().map(|i| i as f32).ok();
+                }
+            }
+
+            update_count += 1;
+            if update_count > 16 {
+                break;
+            }
+        }
+
+        sensor_data.timestamp = (most_recent_update_time - start_time).as_millis() as u32;
 
         let msg = Message::Text(serde_json::to_string(&sensor_data)?);
-
         writer.send(msg).await?;
     }
-
-    Ok(())
 }
 
 async fn parse_msg(msg: Result<Message, tungstenite::Error>) -> Result<Command> {
@@ -205,7 +236,7 @@ async fn parse_msg(msg: Result<Message, tungstenite::Error>) -> Result<Command> 
 }
 
 async fn incoming(
-    tx: flume::Sender<Vec<pi_output::Command>>,
+    gs_to_output: Arc<AtomicRingBuffer<Vec<pi_output::Command>>>,
     mut reader: impl Stream<Item = Result<Message, tungstenite::Error>> + Unpin,
 ) -> Result<()> {
     while let Some(msg) = reader.next().await {
@@ -246,11 +277,11 @@ async fn incoming(
                     pv_o: three_way(states.pv_o),
                 };
 
-                tx.send_async(vec![pi_output::Command::SetValves(valves.into())]).await?;
+                gs_to_output.push_overwrite(vec![pi_output::Command::SetValves(valves.into())]);
             },
             Command::HardAbort => {
                 let valves = shared::Valves::default();
-                tx.send_async(vec![pi_output::Command::SetValves(valves.into())]).await?;
+                gs_to_output.push_overwrite(vec![pi_output::Command::SetValves(valves.into())]);
             },
             Command::SoftAbort => todo!(),
             Command::Ignite => todo!(),
@@ -264,7 +295,7 @@ async fn accept_connection(cs: ConnSide) -> Result<()> {
     let ws = tokio_tungstenite::accept_async(cs.stream).await?;
     let (writer, reader) = ws.split();
 
-    try_join!(outgoing(cs.rx, writer, cs.start_time), incoming(cs.tx, reader))?;
+    try_join!(outgoing(cs.sensor_to_gs, writer, cs.start_time), incoming(cs.gs_to_output, reader))?;
 
     Ok(())
 }

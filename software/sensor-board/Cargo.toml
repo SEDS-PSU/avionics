@@ -11,7 +11,7 @@ defmt-rtt = "0.3.0"
 panic-probe = { version = "0.3.0", features = ["print-defmt"] }
 cortex-m-rtic = "1"
 cortex-m = "0.7.4"
-dwt-systick-monotonic = "1.0.0"
+fugit = "0.3.5"
 bxcan = "0.6.2"
 nb = "1.0"
 shared = { path = "../shared" }
@@ -23,8 +23,8 @@ mcp96x = { path = "../mcp96x" }
 shared-bus = { version = "0.2.2", features = ["cortex-m"] }
 
 [dependencies.stm32f1xx-hal]
-version = "0.8.0"
-features = ["rt", "stm32f105"]
+version = "0.9.0"
+features = ["rt", "stm32f105", "rtic"]
 
 
 # cargo build/run

@@ -2,22 +2,12 @@
 #![no_std]
 
 use defmt_rtt as _;
-use dwt_systick_monotonic::fugit;
 // global logger
 use panic_probe as _;
 use stm32f1xx_hal as _; // memory layout
 
 mod util;
 
-const FREQUENCY: u32 = 36_000_000; // Hz
-
-type Duration = fugit::Duration<u32, 1, FREQUENCY>;
-
-const RASPI_ID: bxcan::StandardId = if let Some(id) = bxcan::StandardId::new(shared::Id::Raspi as u16) {
-    id
-} else {
-    panic!("RASPI_ID is not a valid standard CAN ID");
-};
 const SENSOR_BOARD_ID: bxcan::StandardId =
     if let Some(id) = bxcan::StandardId::new(shared::Id::SensorBoard as u16) {
         id
@@ -29,33 +19,38 @@ const SENSOR_BOARD_ID: bxcan::StandardId =
 mod app {
     use core::fmt;
 
-    use crate::{Duration, FREQUENCY, SENSOR_BOARD_ID};
+    use crate::SENSOR_BOARD_ID;
     use bxcan::{filter::Mask32, Frame, Interrupts, Rx, StandardId, Tx};
-    use dwt_systick_monotonic::DwtSystick;
     use embedded_hal::adc::Channel;
     use heapless::spsc::Queue;
     use mcp96x::{FilterCoefficient, ThermocoupleType, MCP96X};
-    use postcard::MaxSize;
-    use shared::pi_sensor::{self, Force, SensorError, SensorReading, Temperature};
+    use shared::{
+        pi_sensor::{self, Force, SensorError, SensorReading, Temperature, Pressure},
+        Id,
+    };
     use stm32f1xx_hal::{
         adc::{Adc, SampleTime},
         can::Can,
         gpio::{
             gpioa::{PA0, PA1, PA2, PA3, PA4, PA5, PA6, PA7},
             gpiob::{PB0, PB1, PB6, PB7},
-            gpioc::{PC0, PC1, PC2, PC3},
+            gpioc::{PC0, PC1, PC2},
             Alternate, Analog, OpenDrain,
         },
         i2c::BlockingI2c,
-        pac::{Interrupt, ADC1, CAN1, I2C1},
+        pac::{Interrupt, ADC1, CAN1, I2C1, TIM2},
+        timer::MonoTimer,
         prelude::*,
     };
 
-    use crate::RASPI_ID;
+    const FREQUENCY: u32 = 36_000_000; // Hz
+
+    type Instant = fugit::Instant<u32, 1, FREQUENCY>;
+    type Duration = fugit::Duration<u32, 1, FREQUENCY>;
 
     // The monotonic scheduler type
     #[monotonic(binds = SysTick, default = true)]
-    type Mono = DwtSystick<FREQUENCY /* Hz */>;
+    type Mono = MonoTimer<TIM2, FREQUENCY>;
 
     type I2c1 = BlockingI2c<I2C1, (PB6<Alternate<OpenDrain>>, PB7<Alternate<OpenDrain>>)>;
     type I2c1Proxy = shared_bus::I2cProxy<'static, shared_bus::AtomicCheckMutex<I2c1>>;
@@ -77,7 +72,7 @@ mod app {
         flow1: PC1<Analog>,
         flow2: PC2<Analog>,
 
-        battery: PC3<Analog>, // Assignment may change.
+        // battery: PC3<Analog>, // Assignment may change.
     }
 
     pub struct Thermocouples {
@@ -93,11 +88,10 @@ mod app {
     #[shared]
     struct Shared {
         /// The CAN frame queue.
-        /// This has a capacity of 15, according to the documentation.
-        can_tx_queue: Queue<Frame, 16>,
+        /// This has a capacity of 31, according to the documentation.
+        can_tx_queue: Queue<Frame, 32>,
 
         battery_millivolts: Option<u16>,
-        sensor_data: pi_sensor::AllSensors,
     }
 
     // Local resources go here
@@ -128,11 +122,14 @@ mod app {
 
         let clocks = rcc
             .cfgr
-            .use_hse(36.mhz())
+            .use_hse(36.MHz())
             // do we need other stuff here?
-            .sysclk(FREQUENCY.hz())
-            .pclk1(9.mhz())
+            .sysclk(FREQUENCY.Hz())
+            .pclk1(9.MHz())
             .freeze(&mut flash.acr);
+
+        let tim2 = cx.device.TIM2;
+        let mono = tim2.monotonic(&clocks);
 
         // Set up CAN bus.
         // Based on https://github.com/stm32-rs/stm32f1xx-hal/blob/master/examples/can-rtic.rs.
@@ -140,7 +137,7 @@ mod app {
 
         // Set up the ADC.
         let mut adc1 = Adc::adc1(cx.device.ADC1, clocks.clone());
-        adc1.set_sample_time(SampleTime::T_239);
+        adc1.set_sample_time(SampleTime::T_71);
 
         // Pins
         let mut afio = cx.device.AFIO.constrain();
@@ -165,7 +162,7 @@ mod app {
             flow1: gpioc.pc1.into_analog(&mut gpioc.crl),
             flow2: gpioc.pc2.into_analog(&mut gpioc.crl),
 
-            battery: gpioc.pc3.into_analog(&mut gpioc.crl),
+            // battery: gpioc.pc3.into_analog(&mut gpioc.crl),
         };
 
         let mut dwt = cx.core.DWT;
@@ -181,7 +178,7 @@ mod app {
                 cx.device.I2C1,
                 (i2c_scl, i2c_sda),
                 &mut afio.mapr,
-                150.khz(), // TODO: Decrease this if the devices are not responding.
+                150.kHz(),
                 clocks.clone(),
                 1000,
                 10,
@@ -286,16 +283,13 @@ mod app {
         let mut dcb = cx.core.DCB;
         let systick = cx.core.SYST;
 
-        let mono = DwtSystick::new(&mut dcb, dwt, systick, clocks.sysclk().0);
-
-        sensor_poll::spawn().unwrap();
+        // let mut mono = DwtSystick::new(&mut dcb, dwt, systick, clocks.sysclk().0);
 
         // Setup the monotonic timer
         (
             Shared {
                 can_tx_queue: Queue::new(),
                 battery_millivolts: None,
-                sensor_data: Default::default(),
             },
             Local {
                 can_tx,
@@ -319,23 +313,28 @@ mod app {
         }
     }
 
-    #[task]
-    fn sensor_poll(_cx: sensor_poll::Context) {
-        sensor_poll::spawn_after(Duration::millis(1000)).unwrap();
-
-        read_adc1::spawn().expect("failed to spawn task `poll_adc1`");
-        read_thermocouples::spawn().expect("failed to spawn task `poll_thermocouples`");
+    fn enqueue_frame(queue: &mut Queue<Frame, 32>, frame: Frame) {
+        queue.enqueue(frame).expect("the frame queue is full");
+        rtic::pend(Interrupt::USB_HP_CAN_TX);
     }
 
-    #[task(local = [adc1, analog_pins], shared = [sensor_data, battery_millivolts])]
-    fn read_adc1(cx: read_adc1::Context) {
-        defmt::info!("entering `read_adc1`");
-        let start = monotonics::now();
+    const fn can_id(id: shared::Id) -> bxcan::StandardId {
+        if let Some(id) = bxcan::StandardId::new(id as u16) {
+            id
+        } else {
+            panic!("RASPI_ID is not a valid standard CAN ID");
+        }
+    }
 
-        let read_adc1::LocalResources { adc1, analog_pins } = cx.local;
-        let read_adc1::SharedResources {
-            sensor_data,
-            battery_millivolts,
+    /// Runs every 10 ms.
+    #[task(
+        local = [adc1, analog_pins],
+        shared = [can_tx_queue],
+    )]
+    fn fast_sensor_poll(cx: fast_sensor_poll::Context, instant: Instant) {
+        let fast_sensor_poll::LocalResources { adc1, analog_pins } = cx.local;
+        let fast_sensor_poll::SharedResources {
+            mut can_tx_queue,
         } = cx.shared;
 
         fn read_adc(adc: &mut Adc<ADC1>, pin: &mut impl Channel<ADC1, ID = u8>) -> Result<u16, ()> {
@@ -348,7 +347,7 @@ mod app {
             Ok((acc / 4) as u16)
         }
 
-        let s = |res: Result<u16, ()>| match res {
+        let s = |res| match res {
             Ok(v) => SensorReading::new(v),
             Err(_) => SensorReading::new_error(SensorError::Unknown),
         };
@@ -367,52 +366,88 @@ mod app {
         let load1 = l(read_adc(adc1, &mut analog_pins.load_cell1));
         let load2 = l(read_adc(adc1, &mut analog_pins.load_cell2));
 
-        let pres1 = s(read_adc(adc1, &mut analog_pins.pressure1));
-        let pres2 = s(read_adc(adc1, &mut analog_pins.pressure2));
-        let pres3 = s(read_adc(adc1, &mut analog_pins.pressure3));
-        let pres4 = s(read_adc(adc1, &mut analog_pins.pressure4));
-        let pres5 = s(read_adc(adc1, &mut analog_pins.pressure5));
-        let pres6 = s(read_adc(adc1, &mut analog_pins.pressure6));
-        let pres7 = s(read_adc(adc1, &mut analog_pins.pressure7));
-        let pres8 = s(read_adc(adc1, &mut analog_pins.pressure8));
-        let pres9 = s(read_adc(adc1, &mut analog_pins.pressure9));
+        fn pt_to_psig(reading: u16) -> Pressure {
+            // The reading should range from ~496 to ~2480, which corresponds
+            // to 0 to 5000 psig.
+            // The line between those points is
+            //      y = (625 x)/248 - 1250
 
-        let bat_voltage = adc1
-            .read(&mut analog_pins.battery)
-            .ok()
-            .map(|s: u16| ((s as u32) * 1200 / (adc1.read_vref() as u32)).try_into().expect("calculation for battery voltage was wrong"));
+            match (((reading as u32) * 625) / 248).saturating_sub(1250).try_into() {
+                Ok(psig) => Pressure::new(psig),
+                Err(_) => Pressure::new_error(SensorError::OutOfRange),
+            }
+        }
 
-        (sensor_data, battery_millivolts).lock(|sensor_data, bat| {
-            sensor_data.fm_f = fm_f;
-            sensor_data.fm_o = fm_o;
+        let pt = |res: Result<u16, ()>| match res {
+            Ok(v) => pt_to_psig(v),
+            Err(_) => Pressure::new_error(SensorError::Unknown),
+        };
 
-            sensor_data.load1 = load1;
-            sensor_data.load2 = load2;
+        let pres1 = pt(read_adc(adc1, &mut analog_pins.pressure1));
+        let pres2 = pt(read_adc(adc1, &mut analog_pins.pressure2));
+        let pres3 = pt(read_adc(adc1, &mut analog_pins.pressure3));
+        // let pres4 = pt(read_adc(adc1, &mut analog_pins.pressure4));
+        let pres5 = pt(read_adc(adc1, &mut analog_pins.pressure5));
+        let pres6 = pt(read_adc(adc1, &mut analog_pins.pressure6));
+        // let pres7 = pt(read_adc(adc1, &mut analog_pins.pressure7));
+        let pres8 = pt(read_adc(adc1, &mut analog_pins.pressure8));
+        let pres9 = pt(read_adc(adc1, &mut analog_pins.pressure9));
 
-            sensor_data.pt1_f = pres1;
-            sensor_data.pt2_f = pres2;
-            sensor_data.pt1_e = pres3;
-            sensor_data.pt2_o = pres4;
-            sensor_data.pres5 = pres5;
-            sensor_data.pt3_o = pres6;
-            sensor_data.pres7 = pres7;
-            sensor_data.pt4_o = pres8;
-            sensor_data.pt2_p = pres9;
+        let pressure1_data = pi_sensor::Pressure1 {
+            pt1_f: pres1,
+            pt2_f: pres2,
+            pt1_e: pres3,
+            pt2_o: pres5,
+        };
 
-            *bat = bat_voltage;
+        let pressure2_data = pi_sensor::Pressure2 {
+            pt3_o: pres6,
+            pt4_o: pres8,
+            pt2_p: pres9,
+        };
+
+        let flow_and_load = pi_sensor::FlowAndLoad {
+            fm_f,
+            fm_o,
+            load1,
+            load2,
+        };
+
+        let mut buf = [0u8; 8];
+
+        macro_rules! serialize {
+            ($id:expr, $data:expr) => {{
+                let slice = postcard::to_slice(&$data, &mut buf).expect("failed to serialize");
+                bxcan::Frame::new_data(can_id($id), bxcan::Data::new(slice).unwrap())
+            }};
+        }
+
+        let frame1 = serialize!(Id::RaspiPressure1, pressure1_data);
+        let frame2 = serialize!(Id::RaspiPressure2, pressure2_data);
+        let frame3 = serialize!(Id::RaspiFlowAndLoad, flow_and_load);
+
+        can_tx_queue.lock(|tx| {
+            enqueue_frame(tx, frame1);
+            enqueue_frame(tx, frame2);
+            enqueue_frame(tx, frame3);
         });
 
-        let elapsed = monotonics::now() - start;
-        defmt::info!("leaving `read_adc1` after {} us", elapsed.ticks() / Duration::micros(1).ticks());
+        let next_instant = instant + Duration::millis(10);
+        fast_sensor_poll::spawn_at(next_instant, next_instant).unwrap();
     }
 
-    #[task(local = [thermocouples], shared = [sensor_data])]
-    fn read_thermocouples(cx: read_thermocouples::Context) {
-        defmt::info!("entering `read_thermocouples`");
-        let start = monotonics::now();
+    /// Runs every 10 ms.
+    #[task(
+        local = [thermocouples],
+        shared = [can_tx_queue],
+    )]
+    fn slow_sensor_poll(cx: slow_sensor_poll::Context, instant: Instant) {
+        let slow_sensor_poll::LocalResources { thermocouples } = cx.local;
+        let slow_sensor_poll::SharedResources {
+            mut can_tx_queue,
+        } = cx.shared;
 
-        let tc = cx.local.thermocouples;
-        let mut sensor_data = cx.shared.sensor_data;
+        // Thermocouples
 
         let c = |opt: Option<_>| {
             opt.map(|res| match res {
@@ -421,35 +456,145 @@ mod app {
             })
         };
 
-        // This is the source of truth for these sensor to pin mappings.
+        let t1 = c(thermocouples.thermo1.as_mut().map(|t1| t1.read()));
+        let t2 = c(thermocouples.thermo2.as_mut().map(|t2| t2.read()));
+        let t3 = c(thermocouples.thermo3.as_mut().map(|t3| t3.read()));
+        let t4 = c(thermocouples.thermo4.as_mut().map(|t4| t4.read()));
+        let t5 = c(thermocouples.thermo5.as_mut().map(|t5| t5.read()));
+        let t6 = c(thermocouples.thermo6.as_mut().map(|t6| t6.read()));
 
-        let t1 = c(tc.thermo1.as_mut().map(|t1| t1.read()));
-        let t2 = c(tc.thermo2.as_mut().map(|t2| t2.read()));
-        let t3 = c(tc.thermo3.as_mut().map(|t3| t3.read()));
-        let t4 = c(tc.thermo4.as_mut().map(|t4| t4.read()));
-        let t5 = c(tc.thermo5.as_mut().map(|t5| t5.read()));
-        let t6 = c(tc.thermo6.as_mut().map(|t6| t6.read()));
+        //         sensor_data.tc1_e = t1.unwrap_or(Temperature::new_error(SensorError::NoData));
+        //         sensor_data.thermo2 = t2.unwrap_or(Temperature::new_error(SensorError::NoData));
+        //         sensor_data.tc1_f = t3.unwrap_or(Temperature::new_error(SensorError::NoData));
+        //         sensor_data.tc2_f = t4.unwrap_or(Temperature::new_error(SensorError::NoData));
+        //         sensor_data.tc1_o = t5.unwrap_or(Temperature::new_error(SensorError::NoData));
+        //         sensor_data.tc5_o = t6.unwrap_or(Temperature::new_error(SensorError::NoData));
 
-        sensor_data.lock(|s| {
-            s.tc1_e = t1.unwrap_or(Temperature::new_error(SensorError::NoData));
-            s.thermo2 = t2.unwrap_or(Temperature::new_error(SensorError::NoData));
-            s.tc1_f = t3.unwrap_or(Temperature::new_error(SensorError::NoData));
-            s.tc2_f = t4.unwrap_or(Temperature::new_error(SensorError::NoData));
-            s.tc1_o = t5.unwrap_or(Temperature::new_error(SensorError::NoData));
-            s.tc5_o = t6.unwrap_or(Temperature::new_error(SensorError::NoData));
-        });
-
-        let elapsed = monotonics::now() - start;
-        defmt::info!("leaving `read_thermocouples` after {} us", elapsed.ticks() / Duration::micros(1).ticks());
+        let next_instant = instant + Duration::millis(80);
+        fast_sensor_poll::spawn_at(next_instant, next_instant).unwrap();
     }
+
+    // #[task(
+    //     local = [adc1, analog_pins, thermocouples],
+    //     // shared = [sensor_data]
+    // )]
+    // fn sensor_poll(cx: sensor_poll::Context, instant: Instant) {
+    //     let next_instant = instant + Duration::millis(10);
+    //     sensor_poll::spawn_at(next_instant, next_instant).unwrap();
+
+    //     // read_adc1::spawn().expect("failed to spawn task `poll_adc1`");
+    //     // read_thermocouples::spawn().expect("failed to spawn task `poll_thermocouples`");
+
+    //     let sensor_poll::LocalResources { adc1, analog_pins, thermocouples } = cx.local;
+    //     let sensor_poll::SharedResources {
+    //         mut sensor_data,
+    //     } = cx.shared;
+
+    //     fn read_adc(adc: &mut Adc<ADC1>, pin: &mut impl Channel<ADC1, ID = u8>) -> Result<u16, ()> {
+    //         let mut acc = 0u32;
+    //         for _ in 0..4 {
+    //             let sample: u32 = adc.read(pin).map_err(|_| ())?;
+    //             acc += sample;
+    //         }
+
+    //         Ok((acc / 4) as u16)
+    //     }
+
+    //     let s = |res| match res {
+    //         Ok(v) => SensorReading::new(v),
+    //         Err(_) => SensorReading::new_error(SensorError::Unknown),
+    //     };
+
+    //     let l = |res| match res {
+    //         Ok(v) => Force::new(v),
+    //         Err(_) => Force::new_error(SensorError::Unknown),
+    //     };
+
+    //     // This is the source of truth for these sensor to pin mappings.
+
+    //     let fm_f = s(read_adc(adc1, &mut analog_pins.flow1));
+    //     let fm_o = s(read_adc(adc1, &mut analog_pins.flow2));
+
+    //     // TODO: Do conversions into newtons.
+    //     let load1 = l(read_adc(adc1, &mut analog_pins.load_cell1));
+    //     let load2 = l(read_adc(adc1, &mut analog_pins.load_cell2));
+
+    //     fn pt_to_psig(reading: u16) -> Pressure {
+    //         // The reading should range from ~496 to ~2480, which corresponds
+    //         // to 0 to 5000 psig.
+    //         // The line between those points is
+    //         //      y = (625 x)/248 - 1250
+
+    //         match (((reading as u32) * 625) / 248).saturating_sub(1250).try_into() {
+    //             Ok(psig) => Pressure::new(psig),
+    //             Err(_) => Pressure::new_error(SensorError::OutOfRange),
+    //         }
+    //     }
+
+    //     let pt = |res: Result<u16, ()>| match res {
+    //         Ok(v) => pt_to_psig(v),
+    //         Err(_) => Pressure::new_error(SensorError::Unknown),
+    //     };
+
+    //     let pres1 = pt(read_adc(adc1, &mut analog_pins.pressure1));
+    //     let pres2 = pt(read_adc(adc1, &mut analog_pins.pressure2));
+    //     let pres3 = pt(read_adc(adc1, &mut analog_pins.pressure3));
+    //     let pres4 = pt(read_adc(adc1, &mut analog_pins.pressure4));
+    //     let pres5 = pt(read_adc(adc1, &mut analog_pins.pressure5));
+    //     let pres6 = pt(read_adc(adc1, &mut analog_pins.pressure6));
+    //     let pres7 = pt(read_adc(adc1, &mut analog_pins.pressure7));
+    //     let pres8 = pt(read_adc(adc1, &mut analog_pins.pressure8));
+    //     let pres9 = pt(read_adc(adc1, &mut analog_pins.pressure9));
+
+    //     // --------------------------------------------------------------------
+    //     // Thermocouples
+
+    //     let c = |opt: Option<_>| {
+    //         opt.map(|res| match res {
+    //             Ok(v) => Temperature::new(v),
+    //             Err(_) => Temperature::new_error(SensorError::Unknown),
+    //         })
+    //     };
+
+    //     // This is the source of truth for these sensor to pin mappings.
+
+    //     let t1 = c(thermocouples.thermo1.as_mut().map(|t1| t1.read()));
+    //     let t2 = c(thermocouples.thermo2.as_mut().map(|t2| t2.read()));
+    //     let t3 = c(thermocouples.thermo3.as_mut().map(|t3| t3.read()));
+    //     let t4 = c(thermocouples.thermo4.as_mut().map(|t4| t4.read()));
+    //     let t5 = c(thermocouples.thermo5.as_mut().map(|t5| t5.read()));
+    //     let t6 = c(thermocouples.thermo6.as_mut().map(|t6| t6.read()));
+
+    //     sensor_data.lock(|sensor_data| {
+    //         sensor_data.fm_f = fm_f;
+    //         sensor_data.fm_o = fm_o;
+
+    //         sensor_data.load1 = load1;
+    //         sensor_data.load2 = load2;
+
+    //         sensor_data.pt1_f = pres1;
+    //         sensor_data.pt2_f = pres2;
+    //         sensor_data.pt1_e = pres3;
+    //         sensor_data.pt2_o = pres4;
+    //         sensor_data.pres5 = pres5;
+    //         sensor_data.pt3_o = pres6;
+    //         sensor_data.pres7 = pres7;
+    //         sensor_data.pt4_o = pres8;
+    //         sensor_data.pt2_p = pres9;
+
+    //         sensor_data.tc1_e = t1.unwrap_or(Temperature::new_error(SensorError::NoData));
+    //         sensor_data.thermo2 = t2.unwrap_or(Temperature::new_error(SensorError::NoData));
+    //         sensor_data.tc1_f = t3.unwrap_or(Temperature::new_error(SensorError::NoData));
+    //         sensor_data.tc2_f = t4.unwrap_or(Temperature::new_error(SensorError::NoData));
+    //         sensor_data.tc1_o = t5.unwrap_or(Temperature::new_error(SensorError::NoData));
+    //         sensor_data.tc5_o = t6.unwrap_or(Temperature::new_error(SensorError::NoData));
+    //     });
+    // }
 
     /// This is fired every time the CAN controller has finished a frame transmission
     /// or after the USB_HP_CAN_TX ISR is pended.
     #[task(binds = USB_HP_CAN_TX, local = [can_tx], shared = [can_tx_queue], priority = 2)]
     fn can_tx(cx: can_tx::Context) {
-        defmt::info!("entering `can_tx`");
-        let start = monotonics::now();
-
         let mut tx_queue = cx.shared.can_tx_queue;
         let tx = cx.local.can_tx;
 
@@ -463,76 +608,48 @@ mod app {
                             // Frame was placed in a transmit buffer.
                             tx_queue.dequeue();
                         }
-                        Some(pending_frame) => {
+                        Some(_pending_frame) => {
                             // A lower priority frame was replaced with our higher-priority frame.
-                            // Put the lower priority frame back into the transmit queue.
-                            tx_queue.dequeue();
-                            enqueue_frame(tx_queue, pending_frame.clone());
+                            unreachable!()
                         }
                     },
-                    Err(nb::Error::WouldBlock) => break,
+                    Err(nb::Error::WouldBlock) => {
+                        break;
+                    },
                     Err(_) => unreachable!(),
                 }
             }
         });
-
-        let elapsed = monotonics::now() - start;
-        defmt::info!("leaving `can_tx` after {} us", elapsed.ticks() / Duration::micros(1).ticks());
     }
 
-    fn enqueue_frame(queue: &mut Queue<Frame, 16>, frame: Frame) {
-        queue.enqueue(frame).expect("the frame queue is full");
-        rtic::pend(Interrupt::USB_HP_CAN_TX);
-    }
+    // #[task(shared = [can_tx_queue, sensor_data, battery_millivolts], priority = 2)]
+    // fn send_sensor_data(cx: send_sensor_data::Context) {
+    //     let send_sensor_data::SharedResources {
+    //         mut can_tx_queue,
+    //         sensor_data,
+    //         battery_millivolts,
+    //     } = cx.shared;
 
-    #[task(shared = [can_tx_queue, sensor_data, battery_millivolts], priority = 2)]
-    fn send_sensor_data(cx: send_sensor_data::Context) {
-        defmt::info!("entering `send_sensor_data`");
-        let start = monotonics::now();
+    //     let (sensor_data, _battery_millivolts) =
+    //         (sensor_data, battery_millivolts).lock(|data, bat| (data.clone(), *bat));
 
-        let send_sensor_data::SharedResources {
-            mut can_tx_queue,
-            sensor_data,
-            battery_millivolts,
-        } = cx.shared;
+    //     let mut buf = [0; pi_sensor::AllSensors::POSTCARD_MAX_SIZE];
+    //     if let Err(_) = postcard::to_slice(&sensor_data, &mut buf) {
+    //         defmt::error!("Could not serialize sensor data");
+    //         return;
+    //     }
 
-        let (sensor_data, battery_millivolts) =
-            (sensor_data, battery_millivolts).lock(|data, bat| (data.clone(), *bat));
+    //     can_tx_queue.lock(|tx_queue| {
+    //         let mut chunks = buf.chunks(8);
 
-        let header = pi_sensor::ResponseHeader {
-            doing_good: true, // temporary
-            battery_millivolts,
-        };
-
-        let mut buf = [0; pi_sensor::ResponseHeader::POSTCARD_MAX_SIZE];
-        if let Err(_) = postcard::to_slice(&header, &mut buf) {
-            defmt::error!("Could not serialize sensor data header");
-            return;
-        }
-
-        let header_frame = bxcan::Frame::new_data(RASPI_ID, buf);
-
-        let mut buf = [0; pi_sensor::AllSensors::POSTCARD_MAX_SIZE];
-        if let Err(_) = postcard::to_slice(&sensor_data, &mut buf) {
-            defmt::error!("Could not serialize sensor data");
-            return;
-        }
-
-        can_tx_queue.lock(|tx_queue| {
-            enqueue_frame(tx_queue, header_frame);
-
-            let mut chunks = buf.chunks(8);
-
-            for chunk in &mut chunks {
-                let data = bxcan::Data::new(chunk).unwrap();
-                let frame = bxcan::Frame::new_data(RASPI_ID, data);
-                enqueue_frame(tx_queue, frame);
-            }
-        });
-
-        let elapsed = monotonics::now() - start;
-        defmt::info!("leaving `send_sensor_data` after {} us", elapsed.ticks() / Duration::micros(1).ticks());
-    }
+    //         for chunk in &mut chunks {
+    //             assert_eq!(chunk.len(), 8);
+    //             let data = bxcan::Data::new(chunk).unwrap();
+    //             let frame = bxcan::Frame::new_data(RASPI_ID, data);
+    //             enqueue_frame(tx_queue, frame);
+    //         }
+    //     });
+    // }
 
     #[task(binds = USB_LP_CAN_RX0,
         local = [
@@ -541,9 +658,6 @@ mod app {
         priority = 2,
     )]
     fn can_rx0(cx: can_rx0::Context) {
-        defmt::info!("entering `can_rx0`");
-        let start = monotonics::now();
-
         let can_rx0::LocalResources { can_rx } = cx.local;
 
         loop {
@@ -563,9 +677,8 @@ mod app {
                     };
 
                     match request {
-                        pi_sensor::Request::GetSensorData => {
-                            send_sensor_data::spawn()
-                                .expect("failed to spawn task `send_sensor_data`");
+                        pi_sensor::Request::StartSensing => {
+                            fast_sensor_poll::spawn(monotonics::now()).expect("failed to spawn `fast_sensor_poll`")
                         }
                         pi_sensor::Request::Reset => {
                             defmt::info!("resetting");
@@ -578,8 +691,5 @@ mod app {
                 Err(nb::Error::Other(_)) => {} // Ignore overrun errors.
             }
         }
-
-        let elapsed = monotonics::now() - start;
-        defmt::info!("leaving `can_rx0` after {} us", elapsed.ticks() / Duration::micros(1).ticks());
     }
 }

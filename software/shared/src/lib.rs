@@ -9,7 +9,10 @@ pub use valve::{Valves, PackedValves, TwoWay, ThreeWay};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
 pub enum Id {
-    Raspi = 0,
-    OutputBoard = 1,
-    SensorBoard = 2,
+    RaspiOutputStatus = 0b00_000,
+    RaspiPressure1 = 0b00_001,
+    RaspiPressure2 = 0b00_010,
+    RaspiFlowAndLoad = 0b00_011,
+    OutputBoard = 0b01_000,
+    SensorBoard = 0b10_000,
 }

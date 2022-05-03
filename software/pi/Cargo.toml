@@ -5,9 +5,12 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[profile.dev]
+opt-level = 2
+
 [dependencies]
 # thread-priority = "0.7.0"
-flume = "0.10.11"
+# flume = "0.10.11"
 tungstenite = "0.17.1"
 tokio-tungstenite = "0.17.1"
 futures-util = "0.3.21"
@@ -15,11 +18,12 @@ thread-priority = "0.8.2"
 serde = "1.0.136"
 serde_json = "1.0"
 anyhow = "1.0.57"
+atomicring = "1.2.9"
 
 [dependencies.tokio]
 version = "1.0"
 default-features = false
-features = ["io-util", "rt", "time"]
+features = ["io-util", "rt", "time", "sync"]
 
 [dependencies.postcard]
 git = "https://github.com/lachlansneff/postcard.git"

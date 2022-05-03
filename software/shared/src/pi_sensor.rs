@@ -6,10 +6,12 @@ use serde::{Serialize, Deserialize};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Deserialize, Serialize, postcard::MaxSize)]
 pub enum Request {
-    /// The sensor board should respond with 6 frames.
-    /// The first contains the general status of the sensor board.
-    /// The following 5 frames each contain four sensor readings.
-    GetSensorData,
+    // /// The sensor board should respond with 6 frames.
+    // /// The first contains the general status of the sensor board.
+    // /// The following 5 frames each contain four sensor readings.
+    // GetSensorData,
+    /// Start sending data from the sensor board to the pi.
+    StartSensing,
     /// The sensor board should reset itself.
     Reset,
 }
@@ -129,39 +131,106 @@ impl Force {
     }
 }
 
-#[derive(Clone, Default, Deserialize, Serialize, postcard::MaxSize, Debug)]
-pub struct AllSensors {
-    // Thermocouples 
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default, Deserialize, Serialize, postcard::MaxSize)]
+pub struct Pressure(SensorReading);
+
+const _: () = assert!(<Force as postcard::MaxSize>::POSTCARD_MAX_SIZE == 2);
+
+impl Pressure {
+    /// Recieves the pressure in PSIG.
+    pub const fn new(psig: u16) -> Self {
+        Self(SensorReading::new(psig))
+    }
+
+    pub const fn new_error(error: SensorError) -> Self {
+        Self(SensorReading::new_error(error))
+    }
+
+    /// Return the pressure in PSIG.
+    pub fn unpack(self) -> Result<u16, SensorError> {
+        self.0.unpack()
+    }
+}
+
+#[derive(Deserialize, Serialize, postcard::MaxSize)]
+pub struct Pressure1 {
+    pub pt1_f: Pressure,
+    pub pt2_f: Pressure,
+    pub pt1_e: Pressure,
+    pub pt2_o: Pressure,
+}
+
+const _: () = assert!(<Pressure1 as postcard::MaxSize>::POSTCARD_MAX_SIZE == 8);
+
+#[derive(Deserialize, Serialize, postcard::MaxSize)]
+pub struct Pressure2 {
+    pub pt3_o: Pressure,
+    pub pt4_o: Pressure,
+    pub pt2_p: Pressure,
+}
+
+const _: () = assert!(<Pressure2 as postcard::MaxSize>::POSTCARD_MAX_SIZE == 6);
+
+#[derive(Deserialize, Serialize, postcard::MaxSize)]
+pub struct FlowAndLoad {
+    pub fm_f: SensorReading,
+    pub fm_o: SensorReading,
+    pub load1: Force,
+    pub load2: Force,
+}
+
+const _: () = assert!(<FlowAndLoad as postcard::MaxSize>::POSTCARD_MAX_SIZE == 8);
+
+#[derive(Deserialize, Serialize, postcard::MaxSize)]
+pub struct Thermo1 {
     pub tc1_e: Temperature,
-    /// Unused
-    pub thermo2: Temperature,
     pub tc1_f: Temperature,
     pub tc2_f: Temperature,
     pub tc1_o: Temperature,
-    pub tc5_o: Temperature,
-    /// Unused?
-    pub therm7: Temperature,
-
-    // Flow Meters
-    pub fm_f: SensorReading,
-    pub fm_o: SensorReading,
-
-    // Load Cells
-    pub load1: Force,
-    pub load2: Force,
-
-    // Pressure Transducers
-    pub pt1_f: SensorReading,
-    pub pt2_f: SensorReading,
-    pub pt1_e: SensorReading,
-    pub pt2_o: SensorReading,
-    /// Unused
-    pub pres5: SensorReading,
-    pub pt3_o: SensorReading,
-    /// Unused
-    pub pres7: SensorReading,
-    pub pt4_o: SensorReading,
-    pub pt2_p: SensorReading,
 }
 
-const _: () = assert!(<AllSensors as postcard::MaxSize>::POSTCARD_MAX_SIZE == 40);
+const _: () = assert!(<Thermo1 as postcard::MaxSize>::POSTCARD_MAX_SIZE == 8);
+
+#[derive(Deserialize, Serialize, postcard::MaxSize)]
+pub struct Thermo2 {
+    pub tc5_o: Temperature,
+}
+
+const _: () = assert!(<Thermo2 as postcard::MaxSize>::POSTCARD_MAX_SIZE == 2);
+
+// #[derive(Clone, Default, Deserialize, Serialize, postcard::MaxSize, Debug)]
+// pub struct AllSensors {
+//     // Thermocouples 
+//     pub tc1_e: Temperature,
+//     /// Unused
+//     pub thermo2: Temperature,
+//     pub tc1_f: Temperature,
+//     pub tc2_f: Temperature,
+//     pub tc1_o: Temperature,
+//     pub tc5_o: Temperature,
+//     /// Unused?
+//     pub therm7: Temperature,
+
+//     // Flow Meters
+//     pub fm_f: SensorReading,
+//     pub fm_o: SensorReading,
+
+//     // Load Cells
+//     pub load1: Force,
+//     pub load2: Force,
+
+//     // Pressure Transducers
+//     pub pt1_f: Pressure,
+//     pub pt2_f: Pressure,
+//     pub pt1_e: Pressure,
+//     pub pt2_o: Pressure,
+//     /// Unused
+//     pub pres5: Pressure,
+//     pub pt3_o: Pressure,
+//     /// Unused
+//     pub pres7: Pressure,
+//     pub pt4_o: Pressure,
+//     pub pt2_p: Pressure,
+// }
+
+// const _: () = assert!(<AllSensors as postcard::MaxSize>::POSTCARD_MAX_SIZE == 40);
