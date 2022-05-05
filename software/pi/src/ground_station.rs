@@ -1,11 +1,11 @@
-use std::{thread::{self, JoinHandle}, time::{Instant, Duration}, sync::Arc};
+use std::{thread::{self, JoinHandle}, time::{Instant, Duration}, sync::{Arc, Mutex}};
 use futures_util::{StreamExt, try_join, SinkExt, Sink, Stream};
 use shared::{pi_sensor, pi_output};
 use tokio::{net::{TcpListener, TcpStream}, task, runtime};
 use tungstenite::Message;
 use anyhow::{Result, Context};
 use serde::{Serialize, Deserialize};
-use atomicring::AtomicRingBuffer;
+use flume::{Sender, Receiver};
 
 use crate::can::SensorDataKind;
 
@@ -97,8 +97,8 @@ struct SensorData {
 
 pub struct GroundStation {
     _handle: JoinHandle<()>,
-    sensor_to_gs: Arc<AtomicRingBuffer<(SensorDataKind, Instant)>>,
-    gs_to_output: Arc<AtomicRingBuffer<Vec<pi_output::Command>>>,
+    sensor_to_gs_tx: Sender<(SensorDataKind, Instant)>,
+    gs_to_output: Arc<Mutex<Option<Vec<pi_output::Command>>>>,
 }
 
 impl GroundStation {
@@ -106,42 +106,41 @@ impl GroundStation {
     /// would connect to that as a client (over UDP). However, the test-stand hosting the server itself
     /// is easier given current constraints.
     pub fn connect() -> Result<GroundStation> {
-        let sensor_to_gs = Arc::new(AtomicRingBuffer::with_capacity(16));
-        let gs_to_output = Arc::new(AtomicRingBuffer::with_capacity(1));
+        let (sensor_to_gs_tx, sensor_to_gs_rx) = flume::unbounded();
+        let gs_to_output = Arc::new(Mutex::new(None));
 
-        let a = Arc::clone(&sensor_to_gs);
-        let b = Arc::clone(&gs_to_output);
+        let a = Arc::clone(&gs_to_output);
 
         let handle = thread::spawn(move || {
-            run_ground_station(a, b).unwrap();
+            run_ground_station(sensor_to_gs_rx, a).unwrap();
         });
 
         Ok(Self {
             _handle: handle,
-            sensor_to_gs,
+            sensor_to_gs_tx,
             gs_to_output,
         })
     }
 
     pub fn send_sensor_data(&self, data: SensorDataKind, ts: Instant) {
-        self.sensor_to_gs.push_overwrite((data, ts));
+        self.sensor_to_gs_tx.send((data, ts)).unwrap();
     }
 
     pub fn read_new_commands(&self) -> Option<Vec<pi_output::Command>> {
-        self.gs_to_output.try_pop()
+        self.gs_to_output.lock().unwrap().take()
     }
 }
 
 struct ConnSide {
     stream: TcpStream,
-    sensor_to_gs: Arc<AtomicRingBuffer<(SensorDataKind, Instant)>>,
-    gs_to_output: Arc<AtomicRingBuffer<Vec<pi_output::Command>>>,
+    sensor_to_gs: Receiver<(SensorDataKind, Instant)>,
+    gs_to_output: Arc<Mutex<Option<Vec<pi_output::Command>>>>,
     start_time: Instant,
 }
 
 fn run_ground_station(
-    sensor_to_gs: Arc<AtomicRingBuffer<(SensorDataKind, Instant)>>,
-    gs_to_output: Arc<AtomicRingBuffer<Vec<pi_output::Command>>>
+    sensor_to_gs: Receiver<(SensorDataKind, Instant)>,
+    gs_to_output: Arc<Mutex<Option<Vec<pi_output::Command>>>>,
 ) -> Result<()> {
     let rt = runtime::Builder::new_current_thread()
         .enable_io()
@@ -161,7 +160,7 @@ fn run_ground_station(
 
             let conn_side = ConnSide {
                 stream,
-                sensor_to_gs: Arc::clone(&sensor_to_gs),
+                sensor_to_gs: sensor_to_gs.clone(),
                 gs_to_output: Arc::clone(&gs_to_output),
                 start_time,
             };
@@ -176,7 +175,7 @@ fn run_ground_station(
 }
 
 async fn outgoing(
-    sensor_to_gs: Arc<AtomicRingBuffer<(SensorDataKind, Instant)>>,
+    sensor_to_gs: Receiver<(SensorDataKind, Instant)>,
     mut writer: impl Sink<Message, Error = tungstenite::Error> + Unpin,
     start_time: Instant,
 ) -> Result<()> {
@@ -189,7 +188,7 @@ async fn outgoing(
 
         let mut sensor_data = SensorData::default();
         let mut update_count = 0;
-        while let Some((sensor_update, ts)) = sensor_to_gs.try_pop() {
+        while let Ok((sensor_update, ts)) = sensor_to_gs.try_recv() {
             most_recent_update_time = ts;
             match sensor_update {
                 SensorDataKind::Pressure1(data) => {
@@ -250,9 +249,11 @@ async fn parse_msg(msg: Result<Message, tungstenite::Error>) -> Result<Command> 
 }
 
 async fn incoming(
-    gs_to_output: Arc<AtomicRingBuffer<Vec<pi_output::Command>>>,
+    gs_to_output: Arc<Mutex<Option<Vec<pi_output::Command>>>>,
     mut reader: impl Stream<Item = Result<Message, tungstenite::Error>> + Unpin,
 ) -> Result<()> {
+    let mut current_valve_states = shared::Valves::default();
+
     while let Some(msg) = reader.next().await {
         let cmd = match parse_msg(msg).await {
             Ok(cmd) => cmd,
@@ -290,15 +291,39 @@ async fn incoming(
                     pv_f: three_way(states.pv_f),
                     pv_o: three_way(states.pv_o),
                 };
+                current_valve_states = valves;
 
-                gs_to_output.push_overwrite(vec![pi_output::Command::SetValves(valves.into())]);
+                *gs_to_output.lock().unwrap() = Some(vec![pi_output::Command::SetValves(valves.into())]);
             },
             Command::HardAbort => {
                 let valves = shared::Valves::default();
-                gs_to_output.push_overwrite(vec![pi_output::Command::SetValves(valves.into())]);
+                *gs_to_output.lock().unwrap() = Some(vec![pi_output::Command::SetValves(valves.into())]);
             },
             Command::SoftAbort => todo!(),
-            Command::Ignite => todo!(),
+            Command::Ignite => {
+                use pi_output::Command;
+
+                let cmds = vec![
+                    Command::SetValves(shared::Valves {
+                        pv_o: shared::ThreeWay::FuelOxidizer,
+                        ..current_valve_states
+                    }.into()),
+                    Command::Wait(340.try_into().unwrap()),
+                    Command::SetValves(shared::Valves {
+                        pv_f: shared::ThreeWay::FuelOxidizer,
+                        pv_o: shared::ThreeWay::FuelOxidizer,
+                        ..current_valve_states
+                    }.into()),
+                    Command::Wait(1_500.try_into().unwrap()),
+                    Command::SetValves(shared::Valves {
+                        pv_f: shared::ThreeWay::NitrogenPathway,
+                        pv_o: shared::ThreeWay::NitrogenPathway,
+                        ..current_valve_states
+                    }.into()),
+                ];
+
+                *gs_to_output.lock().unwrap() = Some(cmds);
+            },
         }
     }
 

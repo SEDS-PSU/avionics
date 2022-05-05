@@ -45,6 +45,7 @@ fn run() -> Result<()> {
 
         loop {
             if let Some(cmds) = ground_station.read_new_commands() {
+                println!("recieved new commands from ground station");
                 output_board.execute_commands(&cmds)?;
             }
             

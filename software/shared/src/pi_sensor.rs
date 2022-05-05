@@ -115,8 +115,8 @@ pub struct Force(SensorReading);
 const _: () = assert!(<Force as postcard::MaxSize>::POSTCARD_MAX_SIZE == 2);
 
 impl Force {
-    pub const fn new(lbf: i16) -> Self {
-        let abs = if let Some(abs) = lbf.checked_abs() {
+    pub const fn new(kg: i16) -> Self {
+        let abs = if let Some(abs) = kg.checked_abs() {
             abs as u16
         } else {
             return Self(SensorReading::new_error(SensorError::OutOfRange));
@@ -126,7 +126,7 @@ impl Force {
             return Self(SensorReading::new_error(SensorError::OutOfRange));
         }
 
-        let signed = if lbf < 0 {
+        let signed = if kg < 0 {
             1 << 14 | abs
         } else {
             abs
@@ -139,7 +139,7 @@ impl Force {
         Self(SensorReading::new_error(error))
     }
 
-    /// Return the force in lbf.
+    /// Return the mass in kg (in earth gravity).
     pub fn unpack(self) -> Result<i16, SensorError> {
         let raw = self.0.unpack()?;
         let signed = raw & (1 << 14) != 0;
